@@ -54,8 +54,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gymlog.data.local.ExerciseEntity
@@ -504,7 +506,7 @@ private fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
                             }
                             viewModel.addSet(item.sessionExercise.id)
                         },
-                        onDeleteExercise = { viewModel.deleteExercise(item.sessionExercise.id) },
+                        onRemoveLastSet = { set -> viewModel.deleteSet(set.id) },
                         onUpdateSet = { set, weight, reps, completed ->
                             val wasIncomplete = !set.isCompleted && completed
                             viewModel.updateSet(set.id, weight, reps, completed)
@@ -514,7 +516,6 @@ private fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
                                     item.exercise.defaultRestSeconds * 1000L
                             }
                         },
-                        onDeleteSet = { viewModel.deleteSet(it.id) },
                     )
                 }
                 if (orderedExercises.isNotEmpty()) {
@@ -554,10 +555,10 @@ private fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
 private fun SessionExerciseCard(
     item: SessionExerciseWithDetails,
     onAddSet: () -> Unit,
-    onDeleteExercise: () -> Unit,
+    onRemoveLastSet: (WorkoutSetEntity) -> Unit,
     onUpdateSet: (WorkoutSetEntity, Double, Int, Boolean) -> Unit,
-    onDeleteSet: (WorkoutSetEntity) -> Unit,
 ) {
+    val orderedSets = item.sets.sortedBy { it.sortOrder }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -574,18 +575,48 @@ private fun SessionExerciseCard(
                 Text(item.exercise.name, fontWeight = FontWeight.Bold)
                 Text("${item.exercise.targetArea} · 휴식 ${item.exercise.defaultRestSeconds}초")
             }
-            TextButton(onClick = onDeleteExercise) { Text("삭제") }
         }
-        item.sets.sortedBy { it.sortOrder }.forEachIndexed { index, set ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = {
+                    orderedSets.lastOrNull()?.let(onRemoveLastSet)
+                },
+                enabled = orderedSets.isNotEmpty(),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    text = "-",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Text(
+                text = "세트",
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.SemiBold,
+            )
+            TextButton(
+                onClick = onAddSet,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(
+                    text = "+",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        orderedSets.forEachIndexed { index, set ->
             SetRow(
                 index = index + 1,
                 set = set,
                 onUpdateSet = onUpdateSet,
-                onDeleteSet = onDeleteSet,
             )
-        }
-        OutlinedButton(onClick = onAddSet, modifier = Modifier.fillMaxWidth()) {
-            Text("세트 추가")
         }
     }
 }
@@ -595,7 +626,6 @@ private fun SetRow(
     index: Int,
     set: WorkoutSetEntity,
     onUpdateSet: (WorkoutSetEntity, Double, Int, Boolean) -> Unit,
-    onDeleteSet: (WorkoutSetEntity) -> Unit,
 ) {
     var weight by remember(set.id, set.weightKg) { mutableStateOf(set.weightKg.toString()) }
     var reps by remember(set.id, set.reps) { mutableStateOf(set.reps.toString()) }
@@ -631,9 +661,6 @@ private fun SetRow(
                 onUpdateSet(set, weight.toDoubleOrNull() ?: 0.0, reps.toIntOrNull() ?: 0, it)
             },
         )
-        TextButton(onClick = { onDeleteSet(set) }) {
-            Text("삭제")
-        }
     }
 }
 
