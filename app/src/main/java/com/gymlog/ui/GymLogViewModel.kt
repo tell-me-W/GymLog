@@ -168,8 +168,18 @@ class GymLogViewModel(
         }
     }
 
-    fun addSet(sessionExerciseId: Long) {
-        viewModelScope.launch { workoutRepository.addSet(sessionExerciseId) }
+    fun addSet(
+        sessionExerciseId: Long,
+        weightKg: Double = 0.0,
+        reps: Int = 0,
+    ) {
+        viewModelScope.launch {
+            workoutRepository.addSet(
+                sessionExerciseId = sessionExerciseId,
+                weightKg = weightKg,
+                reps = reps,
+            )
+        }
     }
 
     fun updateSet(setId: Long, weightKg: Double, reps: Int, isCompleted: Boolean) {
@@ -180,6 +190,14 @@ class GymLogViewModel(
 
     fun deleteSet(setId: Long) {
         viewModelScope.launch { workoutRepository.deleteSet(setId) }
+    }
+
+    fun deleteHistorySession(sessionId: Long) {
+        viewModelScope.launch {
+            workoutRepository.deleteSession(sessionId)
+            refreshCalendar()
+            refreshDraft()
+        }
     }
 
     fun deleteExercise(sessionExerciseId: Long) {

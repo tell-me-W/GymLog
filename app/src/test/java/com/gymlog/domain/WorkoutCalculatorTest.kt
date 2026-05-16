@@ -34,4 +34,28 @@ class WorkoutCalculatorTest {
         assertEquals(2, summary.exerciseCount)
         assertEquals(2, summary.setCount)
     }
+
+    @Test
+    fun nextSetDefaultsUseLastSetValues() {
+        val next = WorkoutCalculator.nextSetDefaults(
+            WorkoutSetInput(weightKg = 72.5, reps = 10)
+        )
+
+        assertEquals(72.5, next.weightKg, 0.001)
+        assertEquals(10, next.reps)
+    }
+
+    @Test
+    fun nextSetDefaultsAreEmptyWhenNoPreviousSetExists() {
+        val next = WorkoutCalculator.nextSetDefaults(null)
+
+        assertEquals(0.0, next.weightKg, 0.001)
+        assertEquals(0, next.reps)
+    }
+
+    @Test
+    fun canRemoveLastSetOnlyWhenMoreThanOneSetExists() {
+        assertEquals(false, WorkoutCalculator.canRemoveLastSet(1))
+        assertEquals(true, WorkoutCalculator.canRemoveLastSet(2))
+    }
 }

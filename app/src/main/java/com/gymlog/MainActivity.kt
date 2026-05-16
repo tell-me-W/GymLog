@@ -116,9 +116,13 @@ private fun GymLogApp(container: AppContainer) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppScaffold(title: String, content: @Composable () -> Unit) {
+private fun AppScaffold(
+    title: String,
+    actions: @Composable () -> Unit = {},
+    content: @Composable () -> Unit,
+) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text(title) }) },
+        topBar = { TopAppBar(title = { Text(title) }, actions = { actions() }) },
     ) { padding ->
         Box(
             modifier = Modifier
@@ -289,31 +293,62 @@ private fun CopyFromDateScreen(viewModel: GymLogViewModel) {
 @Composable
 private fun HistoryScreen(viewModel: GymLogViewModel) {
     val sessions by viewModel.completedSessions.collectAsState()
-    AppScaffold("운동 기록") {
-        LazyColumn(
+    var deleteTarget by remember { mutableStateOf<WorkoutSessionEntity?>(null) }
+
+    AppScaffold(
+        title = "운동 기록",
+        actions = {
+            TextButton(onClick = viewModel::goDashboard) {
+                Text("대시보드로 돌아가기")
+            }
+        },
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                Text("완료한 운동", style = MaterialTheme.typography.titleMedium)
-            }
-            items(sessions) { session ->
-                HistorySessionRow(
-                    session = session,
-                    onClick = { viewModel.openHistoryDetail(session.id) },
-                )
-            }
-            if (sessions.isEmpty()) {
-                item { Text("아직 완료한 운동 기록이 없습니다.") }
-            }
-            item {
-                TextButton(onClick = viewModel::goDashboard) {
-                    Text("대시보드로 돌아가기")
+            Text("완료한 운동", style = MaterialTheme.typography.titleMedium)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(sessions) { session ->
+                    HistorySessionRow(
+                        session = session,
+                        onClick = { viewModel.openHistoryDetail(session.id) },
+                        onDelete = { deleteTarget = session },
+                    )
+                }
+                if (sessions.isEmpty()) {
+                    item { Text("아직 완료한 운동 기록이 없습니다.") }
                 }
             }
         }
+    }
+
+    deleteTarget?.let { session ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("운동 기록 삭제") },
+            text = { Text("${formatKoreanDate(session.startedAtMillis)} 기록을 삭제할까요?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteHistorySession(session.id)
+                        deleteTarget = null
+                    },
+                ) {
+                    Text("삭제")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text("취소")
+                }
+            },
+        )
     }
 }
 
@@ -321,17 +356,28 @@ private fun HistoryScreen(viewModel: GymLogViewModel) {
 private fun HistorySessionRow(
     session: WorkoutSessionEntity,
     onClick: () -> Unit,
+    onDelete: () -> Unit,
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFFF8FAFC), RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
             .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(formatKoreanDate(session.startedAtMillis), fontWeight = FontWeight.Bold)
-        Text("운동 시간 ${formatDuration(sessionDurationSeconds(session))}")
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onClick),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(formatKoreanDate(session.startedAtMillis), fontWeight = FontWeight.Bold)
+            Text("운동 시간 ${formatDuration(sessionDurationSeconds(session))}")
+        }
+        TextButton(onClick = onDelete) {
+            Text("삭제")
+        }
     }
 }
 
@@ -500,11 +546,15 @@ private fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
                 itemsIndexed(orderedExercises) { index, item ->
                     SessionExerciseCard(
                         item = item,
-                        onAddSet = {
+                        onAddSet = { defaults ->
                             if (index == orderedExercises.lastIndex) {
                                 scrollToBottomAfterSetCount = totalSetCount + 1
                             }
-                            viewModel.addSet(item.sessionExercise.id)
+                            viewModel.addSet(
+                                sessionExerciseId = item.sessionExercise.id,
+                                weightKg = defaults.weightKg,
+                                reps = defaults.reps,
+                            )
                         },
                         onRemoveLastSet = { set -> viewModel.deleteSet(set.id) },
                         onUpdateSet = { set, weight, reps, completed ->
@@ -554,11 +604,12 @@ private fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
 @Composable
 private fun SessionExerciseCard(
     item: SessionExerciseWithDetails,
-    onAddSet: () -> Unit,
+    onAddSet: (WorkoutSetInput) -> Unit,
     onRemoveLastSet: (WorkoutSetEntity) -> Unit,
     onUpdateSet: (WorkoutSetEntity, Double, Int, Boolean) -> Unit,
 ) {
     val orderedSets = item.sets.sortedBy { it.sortOrder }
+    val canRemoveLastSet = WorkoutCalculator.canRemoveLastSet(orderedSets.size)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -583,9 +634,11 @@ private fun SessionExerciseCard(
         ) {
             TextButton(
                 onClick = {
-                    orderedSets.lastOrNull()?.let(onRemoveLastSet)
+                    if (canRemoveLastSet) {
+                        orderedSets.lastOrNull()?.let(onRemoveLastSet)
+                    }
                 },
-                enabled = orderedSets.isNotEmpty(),
+                enabled = canRemoveLastSet,
                 modifier = Modifier.weight(1f),
             ) {
                 Text(
@@ -601,7 +654,12 @@ private fun SessionExerciseCard(
                 fontWeight = FontWeight.SemiBold,
             )
             TextButton(
-                onClick = onAddSet,
+                onClick = {
+                    val lastSet = orderedSets.lastOrNull()?.let {
+                        WorkoutSetInput(weightKg = it.weightKg, reps = it.reps)
+                    }
+                    onAddSet(WorkoutCalculator.nextSetDefaults(lastSet))
+                },
                 modifier = Modifier.weight(1f),
             ) {
                 Text(

@@ -103,6 +103,10 @@ class WorkoutRepository(
         workoutDao.getSet(setId)?.let { workoutDao.deleteSet(it) }
     }
 
+    suspend fun deleteSession(sessionId: Long) {
+        workoutDao.deleteSession(sessionId)
+    }
+
     suspend fun deleteSessionExercise(sessionExerciseId: Long) {
         workoutDao.deleteSessionExercise(sessionExerciseId)
     }

@@ -17,6 +17,14 @@ object WorkoutCalculator {
         return sets.sumOf { it.weightKg * it.reps }
     }
 
+    fun nextSetDefaults(previousSet: WorkoutSetInput?): WorkoutSetInput {
+        return previousSet ?: WorkoutSetInput(weightKg = 0.0, reps = 0)
+    }
+
+    fun canRemoveLastSet(setCount: Int): Boolean {
+        return setCount > 1
+    }
+
     fun summarizeSession(
         sets: List<WorkoutSetInput>,
         exerciseCount: Int,

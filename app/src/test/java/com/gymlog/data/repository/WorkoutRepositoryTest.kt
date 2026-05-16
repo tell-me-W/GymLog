@@ -128,6 +128,25 @@ class WorkoutRepositoryTest {
         assertEquals(120.0, squatSets.first().weightKg, 0.001)
         assertEquals(5, squatSets.first().reps)
     }
+
+    @Test
+    fun deleteSessionRemovesCompletedRecordAndCalendarDate() = runTest {
+        val dao = FakeWorkoutDao()
+        val repository = WorkoutRepository(
+            workoutDao = dao,
+            zoneId = ZoneId.of("Asia/Seoul"),
+            nowMillis = dao::nextNow,
+        )
+        val sessionId = repository.createEmptyDraftSession()
+        val benchId = repository.addExerciseToSession(sessionId, exerciseId = 1L)
+        repository.addSet(benchId, weightKg = 100.0, reps = 5, isCompleted = true)
+        repository.completeSession(sessionId)
+
+        repository.deleteSession(sessionId)
+
+        assertNull(repository.sessionSnapshot(sessionId))
+        assertTrue(repository.completedDatesInMonth(2023, 11).isEmpty())
+    }
 }
 
 private class FakeWorkoutDao : WorkoutDao() {
