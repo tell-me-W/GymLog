@@ -18,8 +18,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -34,6 +37,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -43,6 +49,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -109,9 +123,14 @@ private fun GymLogApp(container: AppContainer) {
     }
 
     when (val current = screen) {
-        Screen.Dashboard -> DashboardScreen(viewModel)
-        Screen.Start -> StartWorkoutScreen(viewModel)
-        Screen.CopyFromDate -> CopyFromDateScreen(viewModel)
+        Screen.Dashboard, Screen.Start, Screen.CopyFromDate -> {
+            DashboardScreen(viewModel)
+            if (current == Screen.Start) {
+                StartWorkoutBottomSheet(viewModel)
+            } else if (current == Screen.CopyFromDate) {
+                CopyFromDateScreen(viewModel)
+            }
+        }
         Screen.History -> HistoryScreen(viewModel)
         is Screen.HistoryDetail -> HistoryDetailScreen(viewModel, current.sessionId)
         is Screen.Logger -> LoggerScreen(viewModel, current.sessionId)
@@ -127,7 +146,18 @@ private fun AppScaffold(
     content: @Composable () -> Unit,
 ) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text(title) }, actions = { actions() }) },
+        topBar = { 
+            TopAppBar(
+                title = { Text(title, color = Color.White) }, 
+                actions = { actions() },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF121212),
+                    actionIconContentColor = Color.White,
+                    titleContentColor = Color.White
+                )
+            ) 
+        },
+        containerColor = Color(0xFF121212)
     ) { padding ->
         Box(
             modifier = Modifier
@@ -139,63 +169,83 @@ private fun AppScaffold(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DashboardScreen(viewModel: GymLogViewModel) {
     val completedDates by viewModel.completedDates.collectAsState()
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val draftSessionId by viewModel.draftSessionId.collectAsState()
-    AppScaffold("GymLog") {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("GymLog", color = Color.White) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF121212))
+            )
+        },
+        containerColor = Color(0xFF121212)
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(padding)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = "이번 달 운동",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                OutlinedButton(onClick = viewModel::showPreviousMonth) {
-                    Text("<")
-                }
                 Text(
                     text = formatKoreanYearMonth(selectedMonth),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
                 )
-                OutlinedButton(onClick = viewModel::showNextMonth) {
-                    Text(">")
+                Row {
+                    TextButton(onClick = viewModel::showPreviousMonth) {
+                        Text("<", color = Color.White, fontSize = 20.sp)
+                    }
+                    TextButton(onClick = viewModel::showNextMonth) {
+                        Text(">", color = Color.White, fontSize = 20.sp)
+                    }
                 }
             }
             MonthCalendar(
                 month = selectedMonth,
                 completedDates = completedDates,
             )
+            Spacer(modifier = Modifier.weight(1f))
             draftSessionId?.let {
-                OutlinedButton(
+                Button(
                     onClick = { viewModel.resumeDraft(it) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("진행 중 운동 이어하기")
+                    Text("진행 중 운동 이어하기", color = Color.White)
                 }
             }
-            Button(
-                onClick = viewModel::openStartWorkout,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("운동 시작")
-            }
-            OutlinedButton(
-                onClick = viewModel::openHistory,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("운동 기록 보기")
+                Button(
+                    onClick = viewModel::openStartWorkout,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("운동 시작", color = Color.White)
+                }
+                Button(
+                    onClick = viewModel::openHistory,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("기록 보기", color = Color.White)
+                }
             }
         }
     }
@@ -208,93 +258,231 @@ private fun MonthCalendar(
 ) {
     val firstDay = month.atDay(1)
     val days = (1..month.lengthOfMonth()).map { firstDay.withDayOfMonth(it) }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(7),
-        modifier = Modifier.height(300.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        items(days) { date ->
-            val hasWorkout = completedDates.contains(date)
-            Column(
-                modifier = Modifier
-                    .background(
-                        color = if (hasWorkout) Color(0xFFE0F7EA) else Color(0xFFF4F4F5),
-                        shape = RoundedCornerShape(8.dp),
-                    )
-                    .padding(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(date.dayOfMonth.toString(), fontWeight = FontWeight.SemiBold)
+    val daysOfWeek = listOf("월", "화", "수", "목", "금", "토", "일")
+    
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+            daysOfWeek.forEach { day ->
+                Text(text = day, color = Color.Gray, fontSize = 12.sp)
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            modifier = Modifier.height(260.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            val emptyDays = firstDay.dayOfWeek.value - 1
+            items(emptyDays) { Spacer(modifier = Modifier.size(40.dp)) }
+            
+            items(days) { date ->
+                val hasWorkout = completedDates.contains(date)
+                val isToday = date == LocalDate.now()
                 Box(
                     modifier = Modifier
-                        .size(6.dp)
+                        .size(40.dp)
                         .background(
-                            color = if (hasWorkout) Color(0xFF16A34A) else Color.Transparent,
-                            shape = RoundedCornerShape(3.dp),
-                        )
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StartWorkoutScreen(viewModel: GymLogViewModel) {
-    AppScaffold("운동 시작") {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Button(
-                onClick = viewModel::startEmptyWorkout,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("빈 운동으로 시작")
-            }
-            OutlinedButton(
-                onClick = viewModel::openCopyFromDate,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("이전 날짜 기록 불러오기")
-            }
-            TextButton(onClick = viewModel::goDashboard) {
-                Text("돌아가기")
-            }
-        }
-    }
-}
-
-@Composable
-private fun CopyFromDateScreen(viewModel: GymLogViewModel) {
-    val sessions by viewModel.completedSessions.collectAsState()
-    AppScaffold("날짜 선택") {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                Text("완료한 운동 날짜를 선택하세요.", style = MaterialTheme.typography.titleMedium)
-            }
-            items(sessions) { session ->
-                OutlinedButton(
-                    onClick = { viewModel.copyWorkout(session.id) },
-                    modifier = Modifier.fillMaxWidth(),
+                            color = if (hasWorkout) Color(0xFF3B82F6) else Color.Transparent,
+                            shape = RoundedCornerShape(20.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text(formatKoreanDate(session.startedAtMillis))
+                    Text(
+                        text = date.dayOfMonth.toString(), 
+                        color = if (hasWorkout) Color.White else Color.LightGray,
+                        fontWeight = if (hasWorkout) FontWeight.Bold else FontWeight.Normal,
+                    )
+                    if (isToday && !hasWorkout) {
+                        Box(modifier = Modifier.size(4.dp).align(Alignment.BottomCenter).background(Color.White, RoundedCornerShape(2.dp)))
+                    }
                 }
             }
-            if (sessions.isEmpty()) {
-                item { Text("아직 복사할 완료 운동이 없습니다.") }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StartWorkoutBottomSheet(viewModel: GymLogViewModel) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = { viewModel.handleBack() },
+        sheetState = sheetState,
+        containerColor = Color(0xFF1E1E1E),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "운동 시작",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Color.White,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+            Button(
+                onClick = viewModel::startEmptyWorkout,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("빈 운동으로 시작", color = Color.White)
+            }
+            Button(
+                onClick = viewModel::openCopyFromDate,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("이전 날짜 기록 불러오기", color = Color.White)
             }
         }
     }
 }
 
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun CopyFromDateScreen(viewModel: GymLogViewModel) {
+    val sessions by viewModel.completedSessions.collectAsState()
+    var selectedSessionId by remember(sessions) { mutableStateOf(sessions.firstOrNull()?.id) }
+    val sessionState = selectedSessionId?.let { viewModel.observeSession(it).collectAsState(initial = null) }
+    val details = sessionState?.value
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = { viewModel.handleBack() },
+        sheetState = sheetState,
+        containerColor = Color(0xFF1E1E1E),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "이전 기록 불러오기",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Color.White,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+            
+            if (sessions.isEmpty()) {
+                Text("완료한 운동 기록이 없습니다.", color = Color.Gray, modifier = Modifier.padding(vertical = 32.dp).align(Alignment.CenterHorizontally))
+            } else {
+                val dotFormatter = remember { java.text.SimpleDateFormat("yyyy.MM.dd", java.util.Locale.getDefault()) }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(sessions) { session ->
+                        val isSelected = session.id == selectedSessionId
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = if (isSelected) Color(0xFF4B5563) else Color(0xFFF3F4F6),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable { selectedSessionId = session.id }
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = dotFormatter.format(java.util.Date(session.startedAtMillis)), 
+                                    color = if (isSelected) Color.White else Color.Gray, 
+                                    fontSize = 16.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                details?.let {
+                    val orderedExercises = it.exercises.sortedBy { ex -> ex.sessionExercise.sortOrder }
+                    val duration = formatDuration(sessionDurationSeconds(it.session))
+                    Text("${orderedExercises.size}종목 • $duration", fontWeight = FontWeight.Bold, color = Color.White)
+                    
+                    LazyColumn(
+                        modifier = Modifier.weight(1f, fill = false).heightIn(max = 250.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(orderedExercises) { item ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp))
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .align(Alignment.BottomEnd)
+                                            .background(Color(0xFFD1D5DB), RoundedCornerShape(topStart = 8.dp, bottomEnd = 12.dp))
+                                    )
+                                }
+                                Column {
+                                    Text(item.exercise.name, fontWeight = FontWeight.Bold, color = Color.White)
+                                    val setGroups = item.sets.groupBy { Pair(it.weightKg, it.reps) }
+                                    val setString = setGroups.entries.joinToString("\n") { (key, groupedSets) ->
+                                        val (weight, reps) = key
+                                        val count = groupedSets.size
+                                        if (weight > 0.0) {
+                                            "${if (weight % 1.0 == 0.0) weight.toInt() else weight}kg·${reps}회 ${count}세트"
+                                        } else {
+                                            "${reps}회 ${count}세트"
+                                        }
+                                    }
+                                    Text(setString, color = Color.Gray, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = {
+                        viewModel.handleBack()
+                        viewModel.startEmptyWorkout() 
+                    },
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B5563)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("빈운동", color = Color.White)
+                }
+                Button(
+                    onClick = {
+                        selectedSessionId?.let { 
+                            viewModel.copyWorkout(it) 
+                        }
+                    },
+                    enabled = selectedSessionId != null,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("불러오기", color = Color.White)
+                }
+            }
+        }
+    }
+}
 @Composable
 private fun HistoryScreen(viewModel: GymLogViewModel) {
     val sessions by viewModel.completedSessions.collectAsState()
@@ -304,7 +492,7 @@ private fun HistoryScreen(viewModel: GymLogViewModel) {
         title = "운동 기록",
         actions = {
             TextButton(onClick = viewModel::goDashboard) {
-                Text("대시보드로 돌아가기")
+                Text("대시보드로 돌아가기", color = Color(0xFF9CA3AF))
             }
         },
     ) {
@@ -314,7 +502,7 @@ private fun HistoryScreen(viewModel: GymLogViewModel) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("완료한 운동", style = MaterialTheme.typography.titleMedium)
+            Text("완료한 운동", style = MaterialTheme.typography.titleMedium, color = Color.White)
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -327,7 +515,7 @@ private fun HistoryScreen(viewModel: GymLogViewModel) {
                     )
                 }
                 if (sessions.isEmpty()) {
-                    item { Text("아직 완료한 운동 기록이 없습니다.") }
+                    item { Text("아직 완료한 운동 기록이 없습니다.", color = Color.Gray) }
                 }
             }
         }
@@ -366,7 +554,7 @@ private fun HistorySessionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFFF8FAFC), RoundedCornerShape(8.dp))
+            .background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp))
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -377,11 +565,11 @@ private fun HistorySessionRow(
                 .clickable(onClick = onClick),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(formatKoreanDate(session.startedAtMillis), fontWeight = FontWeight.Bold)
-            Text("운동 시간 ${formatDuration(sessionDurationSeconds(session))}")
+            Text(formatKoreanDate(session.startedAtMillis), fontWeight = FontWeight.Bold, color = Color.White)
+            Text("운동 시간 ${formatDuration(sessionDurationSeconds(session))}", color = Color.Gray)
         }
         TextButton(onClick = onDelete) {
-            Text("삭제")
+            Text("삭제", color = Color(0xFFEF4444))
         }
     }
 }
@@ -420,10 +608,10 @@ private fun HistoryDetailScreen(viewModel: GymLogViewModel, sessionId: Long) {
             ) {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(formatKoreanDate(details.session.startedAtMillis), fontWeight = FontWeight.Bold)
-                        Text("총 볼륨 ${summary.totalVolumeKg.toInt()} kg")
-                        Text("운동 시간 ${formatDuration(summary.durationSeconds)}")
-                        Text("종목 ${summary.exerciseCount}개 · 세트 ${summary.setCount}개")
+                        Text(formatKoreanDate(details.session.startedAtMillis), fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("총 볼륨 ${summary.totalVolumeKg.toInt()} kg", color = Color.Gray)
+                        Text("운동 시간 ${formatDuration(summary.durationSeconds)}", color = Color.Gray)
+                        Text("종목 ${summary.exerciseCount}개 · 세트 ${summary.setCount}개", color = Color.Gray)
                     }
                 }
                 items(orderedExercises) { item ->
@@ -452,18 +640,18 @@ private fun HistoryExerciseBlock(item: SessionExerciseWithDetails) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFFF8FAFC), RoundedCornerShape(8.dp))
+            .background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(item.exercise.name, fontWeight = FontWeight.Bold)
+        Text(item.exercise.name, fontWeight = FontWeight.Bold, color = Color.White)
         item.sets.sortedBy { it.sortOrder }.forEachIndexed { index, set ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("${index + 1}세트")
-                Text("${set.weightKg} kg × ${set.reps} reps")
+                Text("${index + 1}세트", color = Color.Gray)
+                Text("${set.weightKg} kg × ${set.reps} reps", color = Color.White)
             }
         }
     }
@@ -534,12 +722,15 @@ private fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("경과 ${formatDuration(elapsedSeconds)}")
+                Text("경과 ${formatDuration(elapsedSeconds)}", color = Color.White)
                 if (restSecondsLeft > 0) {
-                    Text("휴식 ${formatDuration(restSecondsLeft)}")
+                    Text("휴식 ${formatDuration(restSecondsLeft)}", color = Color(0xFF3B82F6))
                 }
-                Button(onClick = { viewModel.completeWorkout(sessionId) }) {
-                    Text("운동 완료")
+                Button(
+                    onClick = { viewModel.completeWorkout(sessionId) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
+                ) {
+                    Text("운동 완료", color = Color.White)
                 }
             }
 
@@ -582,8 +773,9 @@ private fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
             Button(
                 onClick = { showAddExercise = true },
                 modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333))
             ) {
-                Text("운동 종목 추가")
+                Text("운동 종목 추가", color = Color.White)
             }
         }
     }
@@ -618,7 +810,7 @@ private fun SessionExerciseCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFFF8FAFC), RoundedCornerShape(8.dp))
+            .background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -628,28 +820,29 @@ private fun SessionExerciseCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
-                Text(item.exercise.name, fontWeight = FontWeight.Bold)
-                Text("${item.exercise.targetArea} · 휴식 ${item.exercise.defaultRestSeconds}초")
+                Text(item.exercise.name, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("${item.exercise.targetArea} · 휴식 ${item.exercise.defaultRestSeconds}초", color = Color.Gray)
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(
-                onClick = {
-                    if (canRemoveLastSet) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(Color(0xFF333333), RoundedCornerShape(8.dp))
+                    .clickable(enabled = canRemoveLastSet) {
                         orderedSets.lastOrNull()?.let(onRemoveLastSet)
-                    }
-                },
-                enabled = canRemoveLastSet,
-                modifier = Modifier.weight(1f),
+                    },
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "-",
-                    fontSize = 28.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
+                    color = if (canRemoveLastSet) Color.White else Color.Gray
                 )
             }
             Text(
@@ -657,22 +850,29 @@ private fun SessionExerciseCard(
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.SemiBold,
+                color = Color.White
             )
-            TextButton(
-                onClick = {
-                    val lastSet = orderedSets.lastOrNull()?.let {
-                        WorkoutSetInput(weightKg = it.weightKg, reps = it.reps)
-                    }
-                    onAddSet(WorkoutCalculator.nextSetDefaults(lastSet))
-                },
-                modifier = Modifier.weight(1f),
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(Color(0xFF333333), RoundedCornerShape(8.dp))
+                    .clickable {
+                        val lastSet = orderedSets.lastOrNull()?.let {
+                            WorkoutSetInput(weightKg = it.weightKg, reps = it.reps)
+                        }
+                        onAddSet(WorkoutCalculator.nextSetDefaults(lastSet))
+                    },
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "+",
-                    fontSize = 28.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
+            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.size(32.dp))
         }
         orderedSets.forEachIndexed { index, set ->
             SetRow(
@@ -690,40 +890,76 @@ private fun SetRow(
     set: WorkoutSetEntity,
     onUpdateSet: (WorkoutSetEntity, Double, Int, Boolean) -> Unit,
 ) {
-    var weight by remember(set.id, set.weightKg) { mutableStateOf(set.weightKg.toString()) }
-    var reps by remember(set.id, set.reps) { mutableStateOf(set.reps.toString()) }
+    var weight by remember(set.id, set.weightKg) { mutableStateOf(if (set.weightKg > 0) set.weightKg.toString() else "") }
+    var reps by remember(set.id, set.reps) { mutableStateOf(if (set.reps > 0) set.reps.toString() else "") }
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("$index", modifier = Modifier.size(24.dp))
-        OutlinedTextField(
-            value = weight,
-            onValueChange = {
-                weight = it
-                onUpdateSet(set, it.toDoubleOrNull() ?: 0.0, reps.toIntOrNull() ?: 0, set.isCompleted)
-            },
-            label = { Text("kg") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.weight(1f),
-        )
-        OutlinedTextField(
-            value = reps,
-            onValueChange = {
-                reps = it
-                onUpdateSet(set, weight.toDoubleOrNull() ?: 0.0, it.toIntOrNull() ?: 0, set.isCompleted)
-            },
-            label = { Text("reps") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.weight(1f),
-        )
-        Checkbox(
-            checked = set.isCompleted,
-            onCheckedChange = {
-                onUpdateSet(set, weight.toDoubleOrNull() ?: 0.0, reps.toIntOrNull() ?: 0, it)
-            },
-        )
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .background(Color(0xFF333333), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("$index", color = Color.White, fontWeight = FontWeight.Bold)
+        }
+        
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.weight(1f)
+        ) {
+            BasicTextField(
+                value = weight,
+                onValueChange = {
+                    weight = it
+                    onUpdateSet(set, it.toDoubleOrNull() ?: 0.0, reps.toIntOrNull() ?: 0, set.isCompleted)
+                },
+                textStyle = TextStyle(color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                cursorBrush = SolidColor(Color.White),
+                modifier = Modifier.width(60.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("kg", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.padding(bottom = 4.dp))
+        }
+        
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.weight(1f)
+        ) {
+            BasicTextField(
+                value = reps,
+                onValueChange = {
+                    reps = it
+                    onUpdateSet(set, weight.toDoubleOrNull() ?: 0.0, it.toIntOrNull() ?: 0, set.isCompleted)
+                },
+                textStyle = TextStyle(color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                cursorBrush = SolidColor(Color.White),
+                modifier = Modifier.width(50.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("회", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.padding(bottom = 4.dp))
+        }
+        
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .background(
+                    color = if (set.isCompleted) Color(0xFF3B82F6) else Color(0xFF333333),
+                    shape = CircleShape
+                )
+                .clickable {
+                    onUpdateSet(set, weight.toDoubleOrNull() ?: 0.0, reps.toIntOrNull() ?: 0, !set.isCompleted)
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("✓", color = Color.White, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
@@ -747,104 +983,151 @@ private fun AddExerciseDialog(
         )
     }
     var selectedExercises by remember { mutableStateOf<Map<Long, ExerciseEntity>>(emptyMap()) }
-    AlertDialog(
+    var searchQuery by remember { mutableStateOf("") }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("운동 종목 추가") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("종목 추가", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+                IconButton(onClick = {
+                    if (selectedExercises.isNotEmpty()) {
+                        onExercisesSelected(selectedExercises.values.toList())
+                    }
+                }) {
+                    Text("+", fontSize = 28.sp, color = Color.Black)
+                }
+            }
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("종목 이름을 검색하세요 (ex. ㅅㅋㅌ)", color = Color.Gray) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(SeedExercises.targetAreas) { target ->
+                    val isSelected = selectedTarget == target
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = if (isSelected) Color(0xFF4B5563) else Color(0xFFF3F4F6),
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .clickable { onTargetSelected(target) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = target,
+                            color = if (isSelected) Color.White else Color.Black,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+            val filteredExercises = exercises.filter { 
+                searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
+            }
+            LazyColumn(
+                modifier = Modifier.weight(1f, fill = false).heightIn(max = 400.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredExercises) { exercise ->
+                    val isSelected = exercise.id in selectedExercises
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = if (isSelected) Color(0xFFEFF6FF) else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable { selectedExercises = selectedExercises.toggle(exercise) }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .background(Color(0xFFD1D5DB), RoundedCornerShape(topStart = 8.dp, bottomEnd = 12.dp))
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(exercise.name, fontWeight = FontWeight.Bold, color = Color.Black)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("최근 기록 없음", color = Color.Gray, fontSize = 12.sp)
+                        }
+                        if (isSelected) {
+                            Text("✓", color = Color.Blue, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            OutlinedButton(
+                onClick = { showCustomForm = !showCustomForm },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (showCustomForm) "커스텀 닫기" else "커스텀 종목 추가")
+            }
+            if (showCustomForm) {
+                Text("커스텀 종목", fontWeight = FontWeight.SemiBold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(SeedExercises.targetAreas) { target ->
+                    items(SeedExercises.exerciseTargetAreas) { target ->
                         FilterChip(
-                            selected = selectedTarget == target,
-                            onClick = { onTargetSelected(target) },
+                            selected = customTarget == target,
+                            onClick = { customTarget = target },
                             label = { Text(target) },
                         )
                     }
                 }
-                LazyColumn(modifier = Modifier.height(220.dp)) {
-                    items(exercises) { exercise ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedExercises = selectedExercises.toggle(exercise)
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        )
-                        {
-                            Checkbox(
-                                checked = exercise.id in selectedExercises,
-                                onCheckedChange = {
-                                    selectedExercises = selectedExercises.toggle(exercise)
-                                },
-                            )
-                            Text(exercise.name)
+                OutlinedTextField(
+                    value = customName,
+                    onValueChange = { customName = it },
+                    label = { Text("종목명") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = customRest,
+                    onValueChange = { customRest = it },
+                    label = { Text("기본 휴식 초") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    onClick = {
+                        if (customName.isNotBlank()) {
+                            onCustomExercise(customName, customTarget, customRest.toIntOrNull() ?: 90)
                         }
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-                OutlinedButton(
-                    onClick = { showCustomForm = !showCustomForm },
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (showCustomForm) "커스텀 닫기" else "커스텀 종목 추가")
-                }
-                if (showCustomForm) {
-                    Text("커스텀 종목", fontWeight = FontWeight.SemiBold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(SeedExercises.exerciseTargetAreas) { target ->
-                            FilterChip(
-                                selected = customTarget == target,
-                                onClick = { customTarget = target },
-                                label = { Text(target) },
-                            )
-                        }
-                    }
-                    OutlinedTextField(
-                        value = customName,
-                        onValueChange = { customName = it },
-                        label = { Text("종목명") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = customRest,
-                        onValueChange = { customRest = it },
-                        label = { Text("기본 휴식 초") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    Text("추가하기")
                 }
             }
-        },
-        confirmButton = {
-            Column {
-                TextButton(
-                    onClick = {
-                        if (selectedExercises.isNotEmpty()) {
-                            onExercisesSelected(selectedExercises.values.toList())
-                        }
-                    }
-                ) {
-                    Text("선택 추가 (${selectedExercises.size})")
-                }
-                if (showCustomForm) {
-                    TextButton(
-                        onClick = {
-                            if (customName.isNotBlank()) {
-                                onCustomExercise(customName, customTarget, customRest.toIntOrNull() ?: 90)
-                            }
-                        }
-                    ) {
-                        Text("커스텀 추가")
-                    }
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("닫기") }
-        },
-    )
+        }
+    }
 }
 
 private fun Map<Long, ExerciseEntity>.toggle(exercise: ExerciseEntity): Map<Long, ExerciseEntity> {
@@ -860,15 +1143,16 @@ private fun SummaryScreen(viewModel: GymLogViewModel, summary: SummaryUiState) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("총 볼륨", style = MaterialTheme.typography.titleMedium)
-            Text("${summary.totalVolumeKg.toInt()} kg", style = MaterialTheme.typography.headlineMedium)
-            Text("운동 시간 ${formatDuration(summary.durationSeconds)}")
-            Text("종목 ${summary.exerciseCount}개 · 세트 ${summary.setCount}개")
+            Text("총 볼륨", style = MaterialTheme.typography.titleMedium, color = Color.Gray)
+            Text("${summary.totalVolumeKg.toInt()} kg", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+            Text("운동 시간 ${formatDuration(summary.durationSeconds)}", color = Color.White)
+            Text("종목 ${summary.exerciseCount}개 · 세트 ${summary.setCount}개", color = Color.White)
             Button(
                 onClick = viewModel::goDashboard,
                 modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
             ) {
-                Text("대시보드로 돌아가기")
+                Text("대시보드로 돌아가기", color = Color.White)
             }
         }
     }
