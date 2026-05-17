@@ -6,11 +6,18 @@ import com.gymlog.data.local.SessionExerciseEntity
 import com.gymlog.data.local.WorkoutSessionEntity
 import com.gymlog.data.local.WorkoutSessionWithExercises
 import com.gymlog.data.local.WorkoutSetEntity
+import com.gymlog.domain.WorkoutCalculator
+import com.gymlog.domain.WorkoutSetInput
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
+
+data class MonthlyWorkoutSummary(
+    val sessionCount: Int = 0,
+    val totalVolumeKg: Double = 0.0,
+)
 
 class WorkoutRepository(
     private val workoutDao: WorkoutDao,
@@ -140,6 +147,24 @@ class WorkoutRepository(
         return workoutDao.completedSessionStartTimes(start, end)
             .map { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate() }
             .toSet()
+    }
+
+    suspend fun completedSummaryInMonth(month: YearMonth): MonthlyWorkoutSummary {
+        val start = month.atDay(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val end = month.plusMonths(1).atDay(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val sessions = workoutDao.getCompletedSessionsWithExercises()
+            .filter { it.session.startedAtMillis >= start && it.session.startedAtMillis < end }
+        val completedSets = sessions
+            .flatMap { session -> session.exercises }
+            .flatMap { exercise -> exercise.sets }
+            .filter { it.isCompleted }
+
+        return MonthlyWorkoutSummary(
+            sessionCount = sessions.size,
+            totalVolumeKg = WorkoutCalculator.totalVolume(
+                completedSets.map { WorkoutSetInput(weightKg = it.weightKg, reps = it.reps) }
+            ),
+        )
     }
 
     private suspend fun pruneIncompleteWork(sessionId: Long) {

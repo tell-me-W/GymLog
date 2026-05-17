@@ -16,8 +16,28 @@ class ExerciseRepository(
     }
 
     suspend fun seedDefaultsIfEmpty() {
-        if (exerciseDao.count() == 0) {
-            exerciseDao.insertExercises(SeedExercises.defaults)
+        val existingExercises = exerciseDao.getAllExercises()
+        SeedExercises.defaults.forEach { defaultExercise ->
+            val existingWithSameName = existingExercises.filter { it.name == defaultExercise.name }
+            if (existingWithSameName.isEmpty()) {
+                exerciseDao.insertExercise(defaultExercise)
+            } else {
+                existingWithSameName
+                    .filter { existing ->
+                        existing.targetArea != defaultExercise.targetArea ||
+                            existing.defaultRestSeconds != defaultExercise.defaultRestSeconds ||
+                            existing.isCustom
+                    }
+                    .forEach { existing ->
+                        exerciseDao.updateExercise(
+                            existing.copy(
+                                targetArea = defaultExercise.targetArea,
+                                defaultRestSeconds = defaultExercise.defaultRestSeconds,
+                                isCustom = false,
+                            )
+                        )
+                    }
+            }
         }
     }
 
