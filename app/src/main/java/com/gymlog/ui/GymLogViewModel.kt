@@ -35,6 +35,14 @@ sealed interface Screen {
     data class Summary(val summary: SummaryUiState) : Screen
 }
 
+fun Screen.backDestination(): Screen {
+    return when (this) {
+        Screen.Dashboard -> Screen.Dashboard
+        is Screen.HistoryDetail -> Screen.History
+        else -> Screen.Dashboard
+    }
+}
+
 data class SummaryUiState(
     val totalVolumeKg: Double,
     val durationSeconds: Long,
@@ -51,11 +59,11 @@ class GymLogViewModel(
     private val _screen = MutableStateFlow<Screen>(Screen.Dashboard)
     val screen: StateFlow<Screen> = _screen
 
-    private val _selectedTarget = MutableStateFlow(SeedExercises.targetAreas.first())
+    private val _selectedTarget = MutableStateFlow(SeedExercises.ALL_TARGET_AREA)
     val selectedTarget: StateFlow<String> = _selectedTarget
 
     val exercises: StateFlow<List<ExerciseEntity>> = _selectedTarget
-        .flatMapLatest { exerciseRepository.observeExercises(it) }
+        .flatMapLatest { exerciseRepository.observeExercises(SeedExercises.queryTargetOrNull(it)) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val completedSessions: StateFlow<List<WorkoutSessionEntity>> = workoutRepository
@@ -89,6 +97,10 @@ class GymLogViewModel(
             refreshCalendar()
             refreshDraft()
         }
+    }
+
+    fun handleBack() {
+        _screen.value = _screen.value.backDestination()
     }
 
     fun openStartWorkout() {

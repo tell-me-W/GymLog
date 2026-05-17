@@ -30,14 +30,14 @@ class RestTimerManager(
     fun start(seconds: Int) {
         cancel()
         if (seconds <= 0) return
-        showRunning(seconds)
+        notifyIfNeeded(RestTimerEvent.Started, seconds)
         timer = object : CountDownTimer(seconds * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
-                showRunning((millisUntilFinished / 1000L).toInt())
+                notifyIfNeeded(RestTimerEvent.Tick, (millisUntilFinished / 1000L).toInt())
             }
 
             override fun onFinish() {
-                showFinished()
+                notifyIfNeeded(RestTimerEvent.Finished, 0)
             }
         }.start()
     }
@@ -45,6 +45,16 @@ class RestTimerManager(
     fun cancel() {
         timer?.cancel()
         timer = null
+        notificationManager.cancel(NOTIFICATION_ID)
+    }
+
+    private fun notifyIfNeeded(event: RestTimerEvent, secondsLeft: Int) {
+        if (!RestTimerNotificationPolicy.shouldNotify(event)) return
+        when (event) {
+            RestTimerEvent.Started,
+            RestTimerEvent.Tick -> showRunning(secondsLeft)
+            RestTimerEvent.Finished -> showFinished()
+        }
     }
 
     private fun showRunning(secondsLeft: Int) {
@@ -53,7 +63,7 @@ class RestTimerManager(
             NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle("휴식 중")
-                .setContentText("${secondsLeft}초 남았습니다.")
+                .setContentText("${secondsLeft}초 남았습니다")
                 .setOngoing(true)
                 .build()
         )
@@ -65,7 +75,7 @@ class RestTimerManager(
             NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle("휴식 완료")
-                .setContentText("다음 세트를 시작할 시간입니다.")
+                .setContentText("다음 세트를 시작할 시간입니다")
                 .setOngoing(false)
                 .build()
         )

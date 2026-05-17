@@ -3,6 +3,7 @@ package com.gymlog
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -102,6 +103,10 @@ private fun GymLogApp(container: AppContainer) {
         )
     )
     val screen by viewModel.screen.collectAsState()
+
+    BackHandler(enabled = screen != Screen.Dashboard) {
+        viewModel.handleBack()
+    }
 
     when (val current = screen) {
         Screen.Dashboard -> DashboardScreen(viewModel)
@@ -734,6 +739,13 @@ private fun AddExerciseDialog(
 ) {
     var customName by remember { mutableStateOf("") }
     var customRest by remember { mutableStateOf("90") }
+    var showCustomForm by remember { mutableStateOf(false) }
+    var customTarget by remember(selectedTarget) {
+        mutableStateOf(
+            selectedTarget.takeUnless { it == SeedExercises.ALL_TARGET_AREA }
+                ?: SeedExercises.exerciseTargetAreas.first()
+        )
+    }
     var selectedExercises by remember { mutableStateOf<Map<Long, ExerciseEntity>>(emptyMap()) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -772,20 +784,37 @@ private fun AddExerciseDialog(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                Text("커스텀 종목", fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
-                    value = customName,
-                    onValueChange = { customName = it },
-                    label = { Text("종목명") },
+                OutlinedButton(
+                    onClick = { showCustomForm = !showCustomForm },
                     modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = customRest,
-                    onValueChange = { customRest = it },
-                    label = { Text("기본 휴식 초") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                ) {
+                    Text(if (showCustomForm) "커스텀 닫기" else "커스텀 종목 추가")
+                }
+                if (showCustomForm) {
+                    Text("커스텀 종목", fontWeight = FontWeight.SemiBold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(SeedExercises.exerciseTargetAreas) { target ->
+                            FilterChip(
+                                selected = customTarget == target,
+                                onClick = { customTarget = target },
+                                label = { Text(target) },
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = customName,
+                        onValueChange = { customName = it },
+                        label = { Text("종목명") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = customRest,
+                        onValueChange = { customRest = it },
+                        label = { Text("기본 휴식 초") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         },
         confirmButton = {
@@ -799,14 +828,16 @@ private fun AddExerciseDialog(
                 ) {
                     Text("선택 추가 (${selectedExercises.size})")
                 }
-                TextButton(
-                    onClick = {
-                        if (customName.isNotBlank()) {
-                            onCustomExercise(customName, selectedTarget, customRest.toIntOrNull() ?: 90)
+                if (showCustomForm) {
+                    TextButton(
+                        onClick = {
+                            if (customName.isNotBlank()) {
+                                onCustomExercise(customName, customTarget, customRest.toIntOrNull() ?: 90)
+                            }
                         }
+                    ) {
+                        Text("커스텀 추가")
                     }
-                ) {
-                    Text("커스텀 추가")
                 }
             }
         },

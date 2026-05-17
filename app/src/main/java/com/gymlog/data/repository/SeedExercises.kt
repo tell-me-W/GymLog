@@ -40,5 +40,12 @@ object SeedExercises {
         ExerciseEntity(name = "행잉 니 레이즈", targetArea = "복근", defaultRestSeconds = 60),
     )
 
-    val targetAreas = listOf("가슴", "등", "하체", "어깨", "팔", "복근")
+    const val ALL_TARGET_AREA = "전체"
+
+    val exerciseTargetAreas = listOf("가슴", "등", "하체", "어깨", "팔", "복근")
+    val targetAreas = listOf(ALL_TARGET_AREA) + exerciseTargetAreas
+
+    fun queryTargetOrNull(targetArea: String): String? {
+        return targetArea.takeUnless { it == ALL_TARGET_AREA }
+    }
 }
