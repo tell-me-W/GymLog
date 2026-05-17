@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,6 +44,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -139,63 +146,83 @@ private fun AppScaffold(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DashboardScreen(viewModel: GymLogViewModel) {
     val completedDates by viewModel.completedDates.collectAsState()
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val draftSessionId by viewModel.draftSessionId.collectAsState()
-    AppScaffold("GymLog") {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("GymLog", color = Color.White) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF121212))
+            )
+        },
+        containerColor = Color(0xFF121212)
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(padding)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = "이번 달 운동",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                OutlinedButton(onClick = viewModel::showPreviousMonth) {
-                    Text("<")
-                }
                 Text(
                     text = formatKoreanYearMonth(selectedMonth),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
                 )
-                OutlinedButton(onClick = viewModel::showNextMonth) {
-                    Text(">")
+                Row {
+                    TextButton(onClick = viewModel::showPreviousMonth) {
+                        Text("<", color = Color.White, fontSize = 20.sp)
+                    }
+                    TextButton(onClick = viewModel::showNextMonth) {
+                        Text(">", color = Color.White, fontSize = 20.sp)
+                    }
                 }
             }
             MonthCalendar(
                 month = selectedMonth,
                 completedDates = completedDates,
             )
+            Spacer(modifier = Modifier.weight(1f))
             draftSessionId?.let {
-                OutlinedButton(
+                Button(
                     onClick = { viewModel.resumeDraft(it) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("진행 중 운동 이어하기")
+                    Text("진행 중 운동 이어하기", color = Color.White)
                 }
             }
-            Button(
-                onClick = viewModel::openStartWorkout,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("운동 시작")
-            }
-            OutlinedButton(
-                onClick = viewModel::openHistory,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("운동 기록 보기")
+                Button(
+                    onClick = viewModel::openStartWorkout,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("자유 운동", color = Color.White)
+                }
+                Button(
+                    onClick = viewModel::openHistory,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("기록 보기", color = Color.White)
+                }
             }
         }
     }
@@ -208,32 +235,45 @@ private fun MonthCalendar(
 ) {
     val firstDay = month.atDay(1)
     val days = (1..month.lengthOfMonth()).map { firstDay.withDayOfMonth(it) }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(7),
-        modifier = Modifier.height(300.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        items(days) { date ->
-            val hasWorkout = completedDates.contains(date)
-            Column(
-                modifier = Modifier
-                    .background(
-                        color = if (hasWorkout) Color(0xFFE0F7EA) else Color(0xFFF4F4F5),
-                        shape = RoundedCornerShape(8.dp),
-                    )
-                    .padding(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(date.dayOfMonth.toString(), fontWeight = FontWeight.SemiBold)
+    val daysOfWeek = listOf("월", "화", "수", "목", "금", "토", "일")
+    
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+            daysOfWeek.forEach { day ->
+                Text(text = day, color = Color.Gray, fontSize = 12.sp)
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            modifier = Modifier.height(260.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            val emptyDays = firstDay.dayOfWeek.value - 1
+            items(emptyDays) { Spacer(modifier = Modifier.size(40.dp)) }
+            
+            items(days) { date ->
+                val hasWorkout = completedDates.contains(date)
+                val isToday = date == LocalDate.now()
                 Box(
                     modifier = Modifier
-                        .size(6.dp)
+                        .size(40.dp)
                         .background(
-                            color = if (hasWorkout) Color(0xFF16A34A) else Color.Transparent,
-                            shape = RoundedCornerShape(3.dp),
-                        )
-                )
+                            color = if (hasWorkout) Color(0xFF3B82F6) else Color.Transparent,
+                            shape = RoundedCornerShape(20.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = date.dayOfMonth.toString(), 
+                        color = if (hasWorkout) Color.White else Color.LightGray,
+                        fontWeight = if (hasWorkout) FontWeight.Bold else FontWeight.Normal,
+                    )
+                    if (isToday && !hasWorkout) {
+                        Box(modifier = Modifier.size(4.dp).align(Alignment.BottomCenter).background(Color.White, RoundedCornerShape(2.dp)))
+                    }
+                }
             }
         }
     }
@@ -268,33 +308,140 @@ private fun StartWorkoutScreen(viewModel: GymLogViewModel) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun CopyFromDateScreen(viewModel: GymLogViewModel) {
     val sessions by viewModel.completedSessions.collectAsState()
-    AppScaffold("날짜 선택") {
-        LazyColumn(
+    var selectedSessionId by remember(sessions) { mutableStateOf(sessions.firstOrNull()?.id) }
+    val sessionState = selectedSessionId?.let { viewModel.observeSession(it).collectAsState(initial = null) }
+    val details = sessionState?.value
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = { viewModel.handleBack() },
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                Text("완료한 운동 날짜를 선택하세요.", style = MaterialTheme.typography.titleMedium)
-            }
-            items(sessions) { session ->
-                OutlinedButton(
-                    onClick = { viewModel.copyWorkout(session.id) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(formatKoreanDate(session.startedAtMillis))
+            Text(
+                text = "이전 기록 불러오기",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Color.Black,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+            
+            if (sessions.isEmpty()) {
+                Text("완료한 운동 기록이 없습니다.", color = Color.Gray, modifier = Modifier.padding(vertical = 32.dp).align(Alignment.CenterHorizontally))
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(sessions) { session ->
+                        val isSelected = session.id == selectedSessionId
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = if (isSelected) Color(0xFF4B5563) else Color(0xFFF3F4F6),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable { selectedSessionId = session.id }
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("종합", color = if (isSelected) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                                Text(formatKoreanDate(session.startedAtMillis), color = if (isSelected) Color.White else Color.Gray, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+                
+                details?.let {
+                    val orderedExercises = it.exercises.sortedBy { ex -> ex.sessionExercise.sortOrder }
+                    val duration = formatDuration(sessionDurationSeconds(it.session))
+                    Text("${orderedExercises.size}종목 • $duration", fontWeight = FontWeight.Bold, color = Color.Black)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f).height(100.dp).background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                            Text("인체 해부도", color = Color.Gray)
+                        }
+                        Box(modifier = Modifier.weight(1f).height(100.dp).background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                            Text("인체 해부도", color = Color.Gray)
+                        }
+                    }
+                    
+                    LazyColumn(
+                        modifier = Modifier.weight(1f, fill = false).heightIn(max = 250.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(orderedExercises) { item ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp))
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .align(Alignment.BottomEnd)
+                                            .background(Color(0xFFD1D5DB), RoundedCornerShape(topStart = 8.dp, bottomEnd = 12.dp))
+                                    )
+                                }
+                                Column {
+                                    Text(item.exercise.name, fontWeight = FontWeight.Bold, color = Color.Black)
+                                    val topSet = item.sets.maxByOrNull { set -> set.weightKg }
+                                    Text("${item.sets.size}세트 • ${topSet?.weightKg ?: 0.0}kg • ${topSet?.reps ?: 0}회", color = Color.Gray, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            if (sessions.isEmpty()) {
-                item { Text("아직 복사할 완료 운동이 없습니다.") }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = {
+                        viewModel.handleBack()
+                        viewModel.startEmptyWorkout() 
+                    },
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B5563)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("빈운동", color = Color.White)
+                }
+                Button(
+                    onClick = {
+                        selectedSessionId?.let { 
+                            viewModel.copyWorkout(it) 
+                        }
+                    },
+                    enabled = selectedSessionId != null,
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("불러오기 PRO", color = Color.White)
+                }
             }
         }
     }
 }
-
 @Composable
 private fun HistoryScreen(viewModel: GymLogViewModel) {
     val sessions by viewModel.completedSessions.collectAsState()
@@ -747,104 +894,152 @@ private fun AddExerciseDialog(
         )
     }
     var selectedExercises by remember { mutableStateOf<Map<Long, ExerciseEntity>>(emptyMap()) }
-    AlertDialog(
+    var searchQuery by remember { mutableStateOf("") }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("운동 종목 추가") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.size(24.dp).background(Color(0xFFE5E7EB), RoundedCornerShape(4.dp)))
+                Text("종목 추가", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+                IconButton(onClick = {
+                    if (selectedExercises.isNotEmpty()) {
+                        onExercisesSelected(selectedExercises.values.toList())
+                    }
+                }) {
+                    Text("+", fontSize = 28.sp, color = Color.Black)
+                }
+            }
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("종목 이름을 검색하세요 (ex. ㅅㅋㅌ)", color = Color.Gray) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(SeedExercises.targetAreas) { target ->
+                    val isSelected = selectedTarget == target
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = if (isSelected) Color(0xFF4B5563) else Color(0xFFF3F4F6),
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .clickable { onTargetSelected(target) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = target,
+                            color = if (isSelected) Color.White else Color.Black,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+            val filteredExercises = exercises.filter { 
+                searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
+            }
+            LazyColumn(
+                modifier = Modifier.weight(1f, fill = false).heightIn(max = 400.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredExercises) { exercise ->
+                    val isSelected = exercise.id in selectedExercises
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = if (isSelected) Color(0xFFEFF6FF) else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable { selectedExercises = selectedExercises.toggle(exercise) }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(Color(0xFFF3F4F6), RoundedCornerShape(12.dp))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .background(Color(0xFFD1D5DB), RoundedCornerShape(topStart = 8.dp, bottomEnd = 12.dp))
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(exercise.name, fontWeight = FontWeight.Bold, color = Color.Black)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("최근 기록 없음", color = Color.Gray, fontSize = 12.sp)
+                        }
+                        if (isSelected) {
+                            Text("✓", color = Color.Blue, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            OutlinedButton(
+                onClick = { showCustomForm = !showCustomForm },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (showCustomForm) "커스텀 닫기" else "커스텀 종목 추가")
+            }
+            if (showCustomForm) {
+                Text("커스텀 종목", fontWeight = FontWeight.SemiBold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(SeedExercises.targetAreas) { target ->
+                    items(SeedExercises.exerciseTargetAreas) { target ->
                         FilterChip(
-                            selected = selectedTarget == target,
-                            onClick = { onTargetSelected(target) },
+                            selected = customTarget == target,
+                            onClick = { customTarget = target },
                             label = { Text(target) },
                         )
                     }
                 }
-                LazyColumn(modifier = Modifier.height(220.dp)) {
-                    items(exercises) { exercise ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedExercises = selectedExercises.toggle(exercise)
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        )
-                        {
-                            Checkbox(
-                                checked = exercise.id in selectedExercises,
-                                onCheckedChange = {
-                                    selectedExercises = selectedExercises.toggle(exercise)
-                                },
-                            )
-                            Text(exercise.name)
+                OutlinedTextField(
+                    value = customName,
+                    onValueChange = { customName = it },
+                    label = { Text("종목명") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = customRest,
+                    onValueChange = { customRest = it },
+                    label = { Text("기본 휴식 초") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    onClick = {
+                        if (customName.isNotBlank()) {
+                            onCustomExercise(customName, customTarget, customRest.toIntOrNull() ?: 90)
                         }
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-                OutlinedButton(
-                    onClick = { showCustomForm = !showCustomForm },
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (showCustomForm) "커스텀 닫기" else "커스텀 종목 추가")
-                }
-                if (showCustomForm) {
-                    Text("커스텀 종목", fontWeight = FontWeight.SemiBold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(SeedExercises.exerciseTargetAreas) { target ->
-                            FilterChip(
-                                selected = customTarget == target,
-                                onClick = { customTarget = target },
-                                label = { Text(target) },
-                            )
-                        }
-                    }
-                    OutlinedTextField(
-                        value = customName,
-                        onValueChange = { customName = it },
-                        label = { Text("종목명") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = customRest,
-                        onValueChange = { customRest = it },
-                        label = { Text("기본 휴식 초") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    Text("추가하기")
                 }
             }
-        },
-        confirmButton = {
-            Column {
-                TextButton(
-                    onClick = {
-                        if (selectedExercises.isNotEmpty()) {
-                            onExercisesSelected(selectedExercises.values.toList())
-                        }
-                    }
-                ) {
-                    Text("선택 추가 (${selectedExercises.size})")
-                }
-                if (showCustomForm) {
-                    TextButton(
-                        onClick = {
-                            if (customName.isNotBlank()) {
-                                onCustomExercise(customName, customTarget, customRest.toIntOrNull() ?: 90)
-                            }
-                        }
-                    ) {
-                        Text("커스텀 추가")
-                    }
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("닫기") }
-        },
-    )
+        }
+    }
 }
 
 private fun Map<Long, ExerciseEntity>.toggle(exercise: ExerciseEntity): Map<Long, ExerciseEntity> {
