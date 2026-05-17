@@ -14,6 +14,7 @@ class ScreenBackNavigationTest {
         assertEquals(Screen.Dashboard, Screen.Start.backDestination())
         assertEquals(Screen.Dashboard, Screen.CopyFromDate.backDestination())
         assertEquals(Screen.Dashboard, Screen.History.backDestination())
+        assertEquals(Screen.Dashboard, Screen.Settings.backDestination())
         assertEquals(Screen.Dashboard, Screen.Logger(12L).backDestination())
         assertEquals(Screen.Dashboard, Screen.Summary(SummaryUiState(0.0, 0L, 0, 0)).backDestination())
     }

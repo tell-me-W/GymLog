@@ -72,3 +72,12 @@ data class WorkoutSetEntity(
     val reps: Int,
     val isCompleted: Boolean = false,
 )
+
+@Entity(tableName = "user_profile")
+data class UserProfileEntity(
+    @PrimaryKey val id: Long = 1L,
+    val heightCm: Double = 0.0,
+    val weightKg: Double = 0.0,
+    val gender: String = "",
+    val age: Int = 0,
+)

@@ -4,10 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gymlog.data.local.ExerciseEntity
+import com.gymlog.data.local.UserProfileEntity
 import com.gymlog.data.local.WorkoutSessionEntity
 import com.gymlog.data.local.WorkoutSessionWithExercises
+import com.gymlog.data.importer.WorkoutTextParser
 import com.gymlog.data.repository.ExerciseRepository
+import com.gymlog.data.repository.ProfileRepository
 import com.gymlog.data.repository.SeedExercises
+import com.gymlog.data.repository.MonthlyWorkoutSummary
+import com.gymlog.data.repository.WorkoutImportRepository
 import com.gymlog.data.repository.WorkoutRepository
 import com.gymlog.domain.WorkoutCalculator
 import com.gymlog.domain.WorkoutSetInput
@@ -29,6 +34,7 @@ sealed interface Screen {
     data object Dashboard : Screen
     data object Start : Screen
     data object CopyFromDate : Screen
+    data object Settings : Screen
     data object History : Screen
     data class HistoryDetail(val sessionId: Long) : Screen
     data class Logger(val sessionId: Long) : Screen
@@ -54,6 +60,8 @@ data class SummaryUiState(
 class GymLogViewModel(
     private val exerciseRepository: ExerciseRepository,
     private val workoutRepository: WorkoutRepository,
+    private val profileRepository: ProfileRepository,
+    private val workoutImportRepository: WorkoutImportRepository,
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     private val _screen = MutableStateFlow<Screen>(Screen.Dashboard)
@@ -73,17 +81,31 @@ class GymLogViewModel(
     private val _completedDates = MutableStateFlow<Set<LocalDate>>(emptySet())
     val completedDates: StateFlow<Set<LocalDate>> = _completedDates
 
+    private val _monthlySummary = MutableStateFlow(MonthlyWorkoutSummary())
+    val monthlySummary: StateFlow<MonthlyWorkoutSummary> = _monthlySummary
+
     private val _selectedMonth = MutableStateFlow(YearMonth.now(zoneId))
     val selectedMonth: StateFlow<YearMonth> = _selectedMonth
 
     private val _draftSessionId = MutableStateFlow<Long?>(null)
     val draftSessionId: StateFlow<Long?> = _draftSessionId
 
+    private val _recentExerciseRecords = MutableStateFlow<Map<Long, RecentExerciseRecord>>(emptyMap())
+    val recentExerciseRecords: StateFlow<Map<Long, RecentExerciseRecord>> = _recentExerciseRecords
+
+    private val _settingsMessage = MutableStateFlow<String?>(null)
+    val settingsMessage: StateFlow<String?> = _settingsMessage
+
+    val profile: StateFlow<UserProfileEntity?> = profileRepository
+        .observeProfile()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     init {
         viewModelScope.launch {
             exerciseRepository.seedDefaultsIfEmpty()
             refreshCalendar()
             refreshDraft()
+            refreshRecentExerciseRecords()
         }
     }
 
@@ -111,6 +133,10 @@ class GymLogViewModel(
         _screen.value = Screen.CopyFromDate
     }
 
+    fun openSettings() {
+        _screen.value = Screen.Settings
+    }
+
     fun openHistory() {
         _screen.value = Screen.History
     }
@@ -131,6 +157,64 @@ class GymLogViewModel(
 
     fun selectTarget(targetArea: String) {
         _selectedTarget.value = targetArea
+    }
+
+    fun saveProfile(heightCm: Double, weightKg: Double, gender: String, age: Int) {
+        viewModelScope.launch {
+            profileRepository.saveProfile(
+                UserProfileEntity(
+                    heightCm = heightCm.coerceAtLeast(0.0),
+                    weightKg = weightKg.coerceAtLeast(0.0),
+                    gender = gender.trim(),
+                    age = age.coerceAtLeast(0),
+                )
+            )
+        }
+    }
+
+    fun refreshRecentExerciseRecords() {
+        viewModelScope.launch {
+            _recentExerciseRecords.value = workoutImportRepository.recentExerciseRecordsWithinMonths()
+        }
+    }
+
+    fun exportBackupJson(onReady: (String) -> Unit) {
+        viewModelScope.launch {
+            runCatching { workoutImportRepository.exportCompletedJson() }
+                .onSuccess(onReady)
+                .onFailure { _settingsMessage.value = it.message ?: "백업 생성에 실패했습니다." }
+        }
+    }
+
+    fun importBackupJson(json: String) {
+        viewModelScope.launch {
+            runCatching { workoutImportRepository.importBackupJson(json) }
+                .onSuccess {
+                    refreshCalendar()
+                    refreshRecentExerciseRecords()
+                    _settingsMessage.value = "불러오기 완료: ${it.inserted}개 추가, ${it.skipped}개 건너뜀"
+                }
+                .onFailure { _settingsMessage.value = it.message ?: "불러오기에 실패했습니다." }
+        }
+    }
+
+    fun importWorkoutText(text: String) {
+        viewModelScope.launch {
+            runCatching {
+                val sessions = WorkoutTextParser(zoneId).parseMany(text).getOrThrow()
+                workoutImportRepository.importSessions(sessions)
+            }
+                .onSuccess {
+                    refreshCalendar()
+                    refreshRecentExerciseRecords()
+                    _settingsMessage.value = "텍스트 추가 완료: ${it.inserted}개 추가, ${it.skipped}개 건너뜀"
+                }
+                .onFailure { _settingsMessage.value = it.message ?: "텍스트 추가에 실패했습니다." }
+        }
+    }
+
+    fun clearSettingsMessage() {
+        _settingsMessage.value = null
     }
 
     fun startEmptyWorkout() {
@@ -235,6 +319,7 @@ class GymLogViewModel(
     private suspend fun refreshCalendar() {
         val month = _selectedMonth.value
         _completedDates.value = workoutRepository.completedDatesInMonth(month.year, month.monthValue)
+        _monthlySummary.value = workoutRepository.completedSummaryInMonth(month)
     }
 
     private suspend fun refreshDraft() {
@@ -261,10 +346,17 @@ class GymLogViewModel(
 class GymLogViewModelFactory(
     private val exerciseRepository: ExerciseRepository,
     private val workoutRepository: WorkoutRepository,
+    private val profileRepository: ProfileRepository,
+    private val workoutImportRepository: WorkoutImportRepository,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return GymLogViewModel(exerciseRepository, workoutRepository) as T
+        return GymLogViewModel(
+            exerciseRepository,
+            workoutRepository,
+            profileRepository,
+            workoutImportRepository,
+        ) as T
     }
 }
 

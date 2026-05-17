@@ -68,6 +68,27 @@ abstract class WorkoutDao {
     @Query("SELECT * FROM workout_sessions WHERE id = :sessionId")
     abstract suspend fun getSessionWithExercises(sessionId: Long): WorkoutSessionWithExercises?
 
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM workout_sessions
+        WHERE status = 'COMPLETED'
+        ORDER BY startedAtMillis DESC
+        """
+    )
+    abstract suspend fun getCompletedSessionsWithExercises(): List<WorkoutSessionWithExercises>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM workout_sessions
+        WHERE status = 'COMPLETED'
+        AND startedAtMillis >= :startMillis
+        ORDER BY startedAtMillis DESC
+        """
+    )
+    abstract suspend fun getCompletedSessionsWithExercisesSince(startMillis: Long): List<WorkoutSessionWithExercises>
+
     @Query(
         """
         SELECT startedAtMillis FROM workout_sessions

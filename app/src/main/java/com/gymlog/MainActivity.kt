@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,11 +80,14 @@ import com.gymlog.data.local.ExerciseEntity
 import com.gymlog.data.local.SessionExerciseWithDetails
 import com.gymlog.data.local.WorkoutSessionEntity
 import com.gymlog.data.local.WorkoutSetEntity
+import com.gymlog.data.repository.MonthlyWorkoutSummary
 import com.gymlog.data.repository.SeedExercises
 import com.gymlog.domain.WorkoutCalculator
 import com.gymlog.domain.WorkoutSetInput
 import com.gymlog.ui.GymLogViewModel
 import com.gymlog.ui.GymLogViewModelFactory
+import com.gymlog.ui.ExercisePickerSorter
+import com.gymlog.ui.RecentExerciseRecord
 import com.gymlog.ui.Screen
 import com.gymlog.ui.SummaryUiState
 import com.gymlog.ui.formatDuration
@@ -92,6 +96,9 @@ import com.gymlog.ui.formatKoreanYearMonth
 import com.gymlog.ui.rest.RestTimerManager
 import java.time.LocalDate
 import java.time.YearMonth
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -114,6 +121,8 @@ private fun GymLogApp(container: AppContainer) {
         factory = GymLogViewModelFactory(
             exerciseRepository = container.exerciseRepository,
             workoutRepository = container.workoutRepository,
+            profileRepository = container.profileRepository,
+            workoutImportRepository = container.workoutImportRepository,
         )
     )
     val screen by viewModel.screen.collectAsState()
@@ -131,6 +140,7 @@ private fun GymLogApp(container: AppContainer) {
                 CopyFromDateScreen(viewModel)
             }
         }
+        Screen.Settings -> SettingsScreen(viewModel)
         Screen.History -> HistoryScreen(viewModel)
         is Screen.HistoryDetail -> HistoryDetailScreen(viewModel, current.sessionId)
         is Screen.Logger -> LoggerScreen(viewModel, current.sessionId)
@@ -173,12 +183,18 @@ private fun AppScaffold(
 @Composable
 private fun DashboardScreen(viewModel: GymLogViewModel) {
     val completedDates by viewModel.completedDates.collectAsState()
+    val monthlySummary by viewModel.monthlySummary.collectAsState()
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val draftSessionId by viewModel.draftSessionId.collectAsState()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("GymLog", color = Color.White) },
+                actions = {
+                    IconButton(onClick = viewModel::openSettings) {
+                        Text("⚙", color = Color.White, fontSize = 22.sp)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF121212))
             )
         },
@@ -215,6 +231,7 @@ private fun DashboardScreen(viewModel: GymLogViewModel) {
                 month = selectedMonth,
                 completedDates = completedDates,
             )
+            MonthlySummaryRow(monthlySummary)
             Spacer(modifier = Modifier.weight(1f))
             draftSessionId?.let {
                 Button(
@@ -252,6 +269,47 @@ private fun DashboardScreen(viewModel: GymLogViewModel) {
 }
 
 @Composable
+private fun MonthlySummaryRow(summary: MonthlyWorkoutSummary) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        MonthlySummaryMetric(
+            label = "운동",
+            value = "${summary.sessionCount}회",
+            modifier = Modifier.weight(1f),
+        )
+        MonthlySummaryMetric(
+            label = "총 볼륨",
+            value = "${summary.totalVolumeKg.toInt()} kg",
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun MonthlySummaryMetric(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .border(1.dp, Color(0xFF2A2A2A), RoundedCornerShape(12.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(label, color = Color.Gray, fontSize = 13.sp)
+        Text(
+            value,
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
 private fun MonthCalendar(
     month: YearMonth,
     completedDates: Set<LocalDate>,
@@ -260,7 +318,12 @@ private fun MonthCalendar(
     val days = (1..month.lengthOfMonth()).map { firstDay.withDayOfMonth(it) }
     val daysOfWeek = listOf("월", "화", "수", "목", "금", "토", "일")
     
-    Column {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFF2A2A2A), RoundedCornerShape(12.dp))
+            .padding(12.dp)
+    ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
             daysOfWeek.forEach { day ->
                 Text(text = day, color = Color.Gray, fontSize = 12.sp)
@@ -284,7 +347,7 @@ private fun MonthCalendar(
                         .size(40.dp)
                         .background(
                             color = if (hasWorkout) Color(0xFF3B82F6) else Color.Transparent,
-                            shape = RoundedCornerShape(20.dp),
+                            shape = CircleShape,
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -293,12 +356,220 @@ private fun MonthCalendar(
                         color = if (hasWorkout) Color.White else Color.LightGray,
                         fontWeight = if (hasWorkout) FontWeight.Bold else FontWeight.Normal,
                     )
-                    if (isToday && !hasWorkout) {
-                        Box(modifier = Modifier.size(4.dp).align(Alignment.BottomCenter).background(Color.White, RoundedCornerShape(2.dp)))
+                    if (isToday) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .align(Alignment.BottomCenter)
+                                .background(Color.White, CircleShape)
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsScreen(viewModel: GymLogViewModel) {
+    val profile by viewModel.profile.collectAsState()
+    val message by viewModel.settingsMessage.collectAsState()
+    val context = LocalContext.current
+    var pendingBackupJson by remember { mutableStateOf<String?>(null) }
+    var height by remember { mutableStateOf("") }
+    var weight by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf("") }
+    var age by remember { mutableStateOf("") }
+    var showTextImport by remember { mutableStateOf(false) }
+    var importText by remember { mutableStateOf("") }
+    val appVersionLabel = remember {
+        runCatching {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageInfo.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.versionCode.toLong()
+            }
+            "${packageInfo.versionName} ($versionCode)"
+        }.getOrDefault("알 수 없음")
+    }
+
+    val backupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val json = pendingBackupJson ?: return@rememberLauncherForActivityResult
+        pendingBackupJson = null
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json) }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            if (json != null) viewModel.importBackupJson(json)
+        }
+    }
+
+    LaunchedEffect(profile) {
+        profile?.let {
+            height = if (it.heightCm > 0.0) it.heightCm.toString() else ""
+            weight = if (it.weightKg > 0.0) it.weightKg.toString() else ""
+            gender = it.gender
+            age = if (it.age > 0) it.age.toString() else ""
+        }
+    }
+
+    AppScaffold("설정") {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E1E1E), RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("프로필", color = Color.White, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(
+                        value = height,
+                        onValueChange = { height = it },
+                        label = { Text("키(cm)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = weight,
+                        onValueChange = { weight = it },
+                        label = { Text("몸무게(kg)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = gender,
+                        onValueChange = { gender = it },
+                        label = { Text("성별") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = age,
+                        onValueChange = { age = it },
+                        label = { Text("나이") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(
+                        onClick = {
+                            viewModel.saveProfile(
+                                height.toDoubleOrNull() ?: 0.0,
+                                weight.toDoubleOrNull() ?: 0.0,
+                                gender,
+                                age.toIntOrNull() ?: 0,
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                    ) {
+                        Text("프로필 저장", color = Color.White)
+                    }
+                }
+            }
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E1E1E), RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("앱 버전", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(appVersionLabel, color = Color.Gray)
+                }
+            }
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E1E1E), RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("운동 기록", color = Color.White, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = { importLauncher.launch(arrayOf("application/json", "text/*")) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("불러오기")
+                    }
+                    Button(
+                        onClick = { showTextImport = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("텍스트로 추가")
+                    }
+                    Button(
+                        onClick = {
+                            viewModel.exportBackupJson { json ->
+                                pendingBackupJson = json
+                                val name = "gymlog-backup-${SimpleDateFormat("yyyyMMdd-HHmm", Locale.getDefault()).format(Date())}.json"
+                                backupLauncher.launch(name)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("운동 기록 백업하기")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showTextImport) {
+        AlertDialog(
+            onDismissRequest = { showTextImport = false },
+            title = { Text("운동 기록 텍스트 추가") },
+            text = {
+                OutlinedTextField(
+                    value = importText,
+                    onValueChange = { importText = it },
+                    minLines = 10,
+                    label = { Text("운동 기록 붙여넣기") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.importWorkoutText(importText)
+                        showTextImport = false
+                        importText = ""
+                    },
+                ) {
+                    Text("추가")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTextImport = false }) { Text("취소") }
+            },
+        )
+    }
+
+    message?.let {
+        AlertDialog(
+            onDismissRequest = viewModel::clearSettingsMessage,
+            title = { Text("알림") },
+            text = { Text(it) },
+            confirmButton = {
+                TextButton(onClick = viewModel::clearSettingsMessage) { Text("확인") }
+            },
+        )
     }
 }
 
@@ -340,7 +611,7 @@ private fun StartWorkoutBottomSheet(viewModel: GymLogViewModel) {
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("이전 날짜 기록 불러오기", color = Color.White)
+                Text("이전 기록 불러오기", color = Color.White)
             }
         }
     }
@@ -667,6 +938,7 @@ private fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
     val session by viewModel.observeSession(sessionId).collectAsState(initial = null)
     val exercises by viewModel.exercises.collectAsState()
     val selectedTarget by viewModel.selectedTarget.collectAsState()
+    val recentExerciseRecords by viewModel.recentExerciseRecords.collectAsState()
     val context = LocalContext.current
     val restTimer = remember { RestTimerManager(context) }
     var showAddExercise by remember { mutableStateOf(false) }
@@ -781,8 +1053,12 @@ private fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
     }
 
     if (showAddExercise) {
+        LaunchedEffect(Unit) {
+            viewModel.refreshRecentExerciseRecords()
+        }
         AddExerciseDialog(
             exercises = exercises,
+            recentRecords = recentExerciseRecords,
             selectedTarget = selectedTarget,
             onTargetSelected = viewModel::selectTarget,
             onDismiss = { showAddExercise = false },
@@ -967,6 +1243,7 @@ private fun SetRow(
 @OptIn(ExperimentalMaterial3Api::class)
 private fun AddExerciseDialog(
     exercises: List<ExerciseEntity>,
+    recentRecords: Map<Long, RecentExerciseRecord>,
     selectedTarget: String,
     onTargetSelected: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -1041,9 +1318,12 @@ private fun AddExerciseDialog(
                     }
                 }
             }
-            val filteredExercises = exercises.filter { 
-                searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
-            }
+            val filteredExercises = ExercisePickerSorter.sort(
+                exercises = exercises.filter {
+                    searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
+                },
+                recentRecords = recentRecords,
+            )
             LazyColumn(
                 modifier = Modifier.weight(1f, fill = false).heightIn(max = 400.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1077,7 +1357,14 @@ private fun AddExerciseDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(exercise.name, fontWeight = FontWeight.Bold, color = Color.Black)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("최근 기록 없음", color = Color.Gray, fontSize = 12.sp)
+                            val recent = recentRecords[exercise.id]
+                            Text(
+                                text = recent?.let {
+                                    "최근 ${SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()).format(Date(it.lastPerformedMillis))} · ${it.setCount}세트"
+                                } ?: "최근 기록 없음",
+                                color = Color.Gray,
+                                fontSize = 12.sp,
+                            )
                         }
                         if (isSelected) {
                             Text("✓", color = Color.Blue, fontWeight = FontWeight.Bold)

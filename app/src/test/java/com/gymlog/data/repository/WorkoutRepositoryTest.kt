@@ -9,6 +9,8 @@ import com.gymlog.data.local.WorkoutSessionEntity
 import com.gymlog.data.local.WorkoutSessionWithExercises
 import com.gymlog.data.local.WorkoutSetEntity
 import java.time.ZoneId
+import java.time.YearMonth
+import java.time.LocalDateTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -147,6 +149,101 @@ class WorkoutRepositoryTest {
         assertNull(repository.sessionSnapshot(sessionId))
         assertTrue(repository.completedDatesInMonth(2023, 11).isEmpty())
     }
+
+    @Test
+    fun monthlySummaryCountsOnlyCompletedSessionsAndCompletedSetsInSelectedMonth() = runTest {
+        val zoneId = ZoneId.of("Asia/Seoul")
+        val dao = FakeWorkoutDao()
+        val repository = WorkoutRepository(
+            workoutDao = dao,
+            zoneId = zoneId,
+            nowMillis = dao::nextNow,
+        )
+        val mayFirstSession = dao.insertSession(
+            WorkoutSessionEntity(
+                startedAtMillis = millisOf(2026, 5, 3, zoneId),
+                endedAtMillis = millisOf(2026, 5, 3, zoneId) + 30_000,
+                status = SessionStatus.COMPLETED,
+            )
+        )
+        val mayFirstExercise = dao.insertSessionExercise(
+            SessionExerciseEntity(sessionId = mayFirstSession, exerciseId = 1L, sortOrder = 0)
+        )
+        dao.insertSet(
+            WorkoutSetEntity(
+                sessionExerciseId = mayFirstExercise,
+                sortOrder = 0,
+                weightKg = 100.0,
+                reps = 5,
+                isCompleted = true,
+            )
+        )
+        dao.insertSet(
+            WorkoutSetEntity(
+                sessionExerciseId = mayFirstExercise,
+                sortOrder = 1,
+                weightKg = 90.0,
+                reps = 8,
+                isCompleted = false,
+            )
+        )
+        val maySecondSession = dao.insertSession(
+            WorkoutSessionEntity(
+                startedAtMillis = millisOf(2026, 5, 17, zoneId),
+                endedAtMillis = millisOf(2026, 5, 17, zoneId) + 30_000,
+                status = SessionStatus.COMPLETED,
+            )
+        )
+        val maySecondExercise = dao.insertSessionExercise(
+            SessionExerciseEntity(sessionId = maySecondSession, exerciseId = 2L, sortOrder = 0)
+        )
+        dao.insertSet(
+            WorkoutSetEntity(
+                sessionExerciseId = maySecondExercise,
+                sortOrder = 0,
+                weightKg = 40.0,
+                reps = 10,
+                isCompleted = true,
+            )
+        )
+        dao.insertSession(
+            WorkoutSessionEntity(
+                startedAtMillis = millisOf(2026, 5, 18, zoneId),
+                status = SessionStatus.DRAFT,
+            )
+        )
+        val juneSession = dao.insertSession(
+            WorkoutSessionEntity(
+                startedAtMillis = millisOf(2026, 6, 1, zoneId),
+                endedAtMillis = millisOf(2026, 6, 1, zoneId) + 30_000,
+                status = SessionStatus.COMPLETED,
+            )
+        )
+        val juneExercise = dao.insertSessionExercise(
+            SessionExerciseEntity(sessionId = juneSession, exerciseId = 3L, sortOrder = 0)
+        )
+        dao.insertSet(
+            WorkoutSetEntity(
+                sessionExerciseId = juneExercise,
+                sortOrder = 0,
+                weightKg = 200.0,
+                reps = 10,
+                isCompleted = true,
+            )
+        )
+
+        val summary = repository.completedSummaryInMonth(YearMonth.of(2026, 5))
+
+        assertEquals(2, summary.sessionCount)
+        assertEquals(900.0, summary.totalVolumeKg, 0.001)
+    }
+}
+
+private fun millisOf(year: Int, month: Int, day: Int, zoneId: ZoneId): Long {
+    return LocalDateTime.of(year, month, day, 12, 0)
+        .atZone(zoneId)
+        .toInstant()
+        .toEpochMilli()
 }
 
 private class FakeWorkoutDao : WorkoutDao() {
@@ -241,6 +338,18 @@ private class FakeWorkoutDao : WorkoutDao() {
 
     override suspend fun getSessionWithExercises(sessionId: Long): WorkoutSessionWithExercises? {
         return getSessionWithExercisesSnapshot(sessionId)
+    }
+
+    override suspend fun getCompletedSessionsWithExercises(): List<WorkoutSessionWithExercises> {
+        return sessions.values
+            .filter { it.status == SessionStatus.COMPLETED }
+            .mapNotNull { getSessionWithExercisesSnapshot(it.id) }
+    }
+
+    override suspend fun getCompletedSessionsWithExercisesSince(startMillis: Long): List<WorkoutSessionWithExercises> {
+        return sessions.values
+            .filter { it.status == SessionStatus.COMPLETED && it.startedAtMillis >= startMillis }
+            .mapNotNull { getSessionWithExercisesSnapshot(it.id) }
     }
 
     override suspend fun completedSessionStartTimes(startMillis: Long, endMillis: Long): List<Long> {
