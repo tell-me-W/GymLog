@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 interface RoutineDao {
     @Transaction
     @Query("SELECT * FROM routines ORDER BY name")
-    fun observeRoutines(): Flow<List<RoutineWithExercises>>
+    fun observeRoutines(): Flow<List<RoutineWithExerciseDetails>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertRoutine(routine: RoutineEntity): Long

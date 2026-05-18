@@ -27,11 +27,21 @@ data class SessionExerciseWithDetails(
     val sets: List<WorkoutSetEntity>,
 )
 
-data class RoutineWithExercises(
+data class RoutineExerciseWithDetails(
+    @Embedded val routineExercise: RoutineExerciseEntity,
+    @Relation(
+        parentColumn = "exerciseId",
+        entityColumn = "id",
+    )
+    val exercise: ExerciseEntity,
+)
+
+data class RoutineWithExerciseDetails(
     @Embedded val routine: RoutineEntity,
     @Relation(
+        entity = RoutineExerciseEntity::class,
         parentColumn = "id",
         entityColumn = "routineId",
     )
-    val exercises: List<RoutineExerciseEntity>,
+    val exercises: List<RoutineExerciseWithDetails>,
 )
