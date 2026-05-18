@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gymlog.data.local.ExerciseEntity
+import com.gymlog.data.local.RoutineWithExercises
 import com.gymlog.data.local.UserProfileEntity
 import com.gymlog.data.local.WorkoutSessionEntity
 import com.gymlog.data.local.WorkoutSessionWithExercises
 import com.gymlog.data.importer.WorkoutTextParser
 import com.gymlog.data.repository.ExerciseRepository
 import com.gymlog.data.repository.ProfileRepository
+import com.gymlog.data.repository.RoutineRepository
 import com.gymlog.data.repository.SeedExercises
 import com.gymlog.data.repository.MonthlyWorkoutSummary
 import com.gymlog.data.repository.WorkoutImportRepository
@@ -54,6 +56,7 @@ data class SummaryUiState(
     val durationSeconds: Long,
     val exerciseCount: Int,
     val setCount: Int,
+    val completedAtMillis: Long = System.currentTimeMillis(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -62,6 +65,7 @@ class GymLogViewModel(
     private val workoutRepository: WorkoutRepository,
     private val profileRepository: ProfileRepository,
     private val workoutImportRepository: WorkoutImportRepository,
+    private val routineRepository: RoutineRepository,
 ) : ViewModel() {
     private val zoneId = ZoneId.systemDefault()
     private val _screen = MutableStateFlow<Screen>(Screen.Dashboard)
@@ -99,6 +103,10 @@ class GymLogViewModel(
     val profile: StateFlow<UserProfileEntity?> = profileRepository
         .observeProfile()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val routines: StateFlow<List<RoutineWithExercises>> = routineRepository
+        .observeRoutines()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
         viewModelScope.launch {
@@ -247,6 +255,26 @@ class GymLogViewModel(
         }
     }
 
+    fun addRoutine(sessionId: Long, routine: RoutineWithExercises) {
+        addExercises(
+            sessionId = sessionId,
+            exerciseIds = routine.exercises.sortedBy { it.sortOrder }.map { it.exerciseId },
+        )
+    }
+
+    fun createRoutine(name: String, exerciseIds: List<Long>) {
+        viewModelScope.launch {
+            runCatching { routineRepository.createRoutine(name, exerciseIds) }
+                .onFailure { _settingsMessage.value = it.message ?: "루틴 생성에 실패했습니다." }
+        }
+    }
+
+    fun deleteRoutine(routineId: Long) {
+        viewModelScope.launch {
+            routineRepository.deleteRoutine(routineId)
+        }
+    }
+
     fun resumeDraft(sessionId: Long) {
         _screen.value = Screen.Logger(sessionId)
     }
@@ -268,19 +296,21 @@ class GymLogViewModel(
         sessionExerciseId: Long,
         weightKg: Double = 0.0,
         reps: Int = 0,
+        durationSeconds: Int = 0,
     ) {
         viewModelScope.launch {
             workoutRepository.addSet(
                 sessionExerciseId = sessionExerciseId,
                 weightKg = weightKg,
                 reps = reps,
+                durationSeconds = durationSeconds,
             )
         }
     }
 
-    fun updateSet(setId: Long, weightKg: Double, reps: Int, isCompleted: Boolean) {
+    fun updateSet(setId: Long, weightKg: Double, reps: Int, isCompleted: Boolean, durationSeconds: Int? = null) {
         viewModelScope.launch {
-            workoutRepository.updateSet(setId, weightKg, reps, isCompleted)
+            workoutRepository.updateSet(setId, weightKg, reps, isCompleted, durationSeconds)
         }
     }
 
@@ -339,6 +369,7 @@ class GymLogViewModel(
             durationSeconds = summary.durationSeconds,
             exerciseCount = summary.exerciseCount,
             setCount = summary.setCount,
+            completedAtMillis = session.endedAtMillis ?: session.startedAtMillis,
         )
     }
 }
@@ -348,6 +379,7 @@ class GymLogViewModelFactory(
     private val workoutRepository: WorkoutRepository,
     private val profileRepository: ProfileRepository,
     private val workoutImportRepository: WorkoutImportRepository,
+    private val routineRepository: RoutineRepository,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -356,6 +388,7 @@ class GymLogViewModelFactory(
             workoutRepository,
             profileRepository,
             workoutImportRepository,
+            routineRepository,
         ) as T
     }
 }

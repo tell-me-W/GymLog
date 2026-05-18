@@ -1,6 +1,7 @@
 package com.gymlog.data.repository
 
 import com.gymlog.data.local.ExerciseEntity
+import com.gymlog.data.local.ExerciseInputType
 
 object SeedExercises {
     val defaults = listOf(
@@ -165,21 +166,21 @@ object SeedExercises {
     ExerciseEntity(name = "플러터 킥", targetArea = "복근", defaultRestSeconds = 45),
 
     // 기타 시간 기준 운동 (Duration-based)
-    ExerciseEntity(name = "로잉 머신", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "스텝밀 (천국의계단)", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "마이 마운틴", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "사이클", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "러닝 (트레드밀)", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "유산소", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "걷기", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "인클라인 러닝 (트레드밀)", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "인터벌", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "조깅", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "스텝퍼", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "수영", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "풋살", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "페이스 마크", targetArea = "기타", defaultRestSeconds = 60),
-    ExerciseEntity(name = "등산", targetArea = "기타", defaultRestSeconds = 60),
+    cardioExercise("로잉 머신"),
+    cardioExercise("스텝밀 (천국의계단)"),
+    cardioExercise("마이 마운틴"),
+    cardioExercise("사이클"),
+    cardioExercise("러닝 (트레드밀)"),
+    cardioExercise("유산소"),
+    cardioExercise("걷기"),
+    cardioExercise("인클라인 러닝 (트레드밀)"),
+    cardioExercise("인터벌"),
+    cardioExercise("조깅"),
+    cardioExercise("스텝퍼"),
+    cardioExercise("수영"),
+    cardioExercise("풋살"),
+    cardioExercise("페이스 마크"),
+    cardioExercise("등산"),
 
     // 기타 횟수 기준 운동 (Repetition-based)
     ExerciseEntity(name = "버피 테스트", targetArea = "기타", defaultRestSeconds = 60),
@@ -196,7 +197,7 @@ object SeedExercises {
     const val ALL_TARGET_AREA = "전체"
     const val UNCATEGORIZED_TARGET_AREA = "기타"
 
-    val exerciseTargetAreas = listOf("가슴", "등", "하체", "어깨", "팔", "복근", "기타")
+    val exerciseTargetAreas = listOf("가슴", "등", "하체", "어깨", "팔", "복근", "유산소", "기타")
     val targetAreas = listOf(ALL_TARGET_AREA) + exerciseTargetAreas
 
     fun queryTargetOrNull(targetArea: String): String? {
@@ -206,5 +207,14 @@ object SeedExercises {
     fun defaultByName(name: String): ExerciseEntity? {
         val normalizedName = name.trim()
         return defaults.firstOrNull { it.name == normalizedName }
+    }
+
+    private fun cardioExercise(name: String): ExerciseEntity {
+        return ExerciseEntity(
+            name = name,
+            targetArea = "유산소",
+            defaultRestSeconds = 60,
+            inputType = ExerciseInputType.DURATION,
+        )
     }
 }

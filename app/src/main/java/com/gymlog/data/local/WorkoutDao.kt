@@ -154,6 +154,7 @@ abstract class WorkoutDao {
                                 sortOrder = sourceSet.sortOrder,
                                 weightKg = sourceSet.weightKg,
                                 reps = sourceSet.reps,
+                                durationSeconds = sourceSet.durationSeconds,
                                 isCompleted = false,
                             )
                         )

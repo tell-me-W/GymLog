@@ -64,6 +64,7 @@ class WorkoutRepository(
         sessionExerciseId: Long,
         weightKg: Double = 0.0,
         reps: Int = 0,
+        durationSeconds: Int = 0,
         isCompleted: Boolean = false,
     ): Long {
         val nextOrder = workoutDao.maxSetOrder(sessionExerciseId) + 1
@@ -73,21 +74,32 @@ class WorkoutRepository(
                 sortOrder = nextOrder,
                 weightKg = weightKg.coerceAtLeast(0.0),
                 reps = reps.coerceAtLeast(0),
+                durationSeconds = durationSeconds.coerceAtLeast(0),
                 isCompleted = isCompleted,
             )
         )
     }
 
-    suspend fun updateSet(setId: Long, weightKg: Double, reps: Int, isCompleted: Boolean) {
+    suspend fun updateSet(
+        setId: Long,
+        weightKg: Double,
+        reps: Int,
+        isCompleted: Boolean,
+        durationSeconds: Int? = null,
+    ) {
         val current = workoutDao.getSet(setId) ?: return
         val cleanWeightKg = weightKg.coerceAtLeast(0.0)
         val cleanReps = reps.coerceAtLeast(0)
-        val valuesChanged = current.weightKg != cleanWeightKg || current.reps != cleanReps
+        val cleanDurationSeconds = durationSeconds?.coerceAtLeast(0) ?: current.durationSeconds
+        val valuesChanged = current.weightKg != cleanWeightKg ||
+            current.reps != cleanReps ||
+            current.durationSeconds != cleanDurationSeconds
 
         workoutDao.updateSet(
             current.copy(
                 weightKg = cleanWeightKg,
                 reps = cleanReps,
+                durationSeconds = cleanDurationSeconds,
                 isCompleted = isCompleted,
             )
         )
@@ -100,6 +112,7 @@ class WorkoutRepository(
                         set.copy(
                             weightKg = cleanWeightKg,
                             reps = cleanReps,
+                            durationSeconds = cleanDurationSeconds,
                         )
                     )
                 }

@@ -3,6 +3,7 @@ package com.gymlog.data.backup
 import com.gymlog.data.importer.ImportedExercise
 import com.gymlog.data.importer.ImportedSet
 import com.gymlog.data.importer.ImportedWorkoutSession
+import com.gymlog.data.local.ExerciseInputType
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -33,10 +34,14 @@ object WorkoutBackupCodec {
                         name = exerciseJson.getString("name"),
                         targetArea = exerciseJson.optString("targetArea", "기타"),
                         defaultRestSeconds = exerciseJson.optInt("defaultRestSeconds", 90),
+                        inputType = ExerciseInputType.valueOf(
+                            exerciseJson.optString("inputType", ExerciseInputType.REPS.name)
+                        ),
                         sets = exerciseJson.getJSONArray("sets").mapObjects { setJson ->
                             ImportedSet(
                                 weightKg = setJson.getDouble("weightKg"),
                                 reps = setJson.getInt("reps"),
+                                durationSeconds = setJson.optInt("durationSeconds", 0),
                                 isCompleted = true,
                             )
                         },
@@ -63,6 +68,7 @@ object WorkoutBackupCodec {
             .put("name", name)
             .put("targetArea", targetArea)
             .put("defaultRestSeconds", defaultRestSeconds)
+            .put("inputType", inputType.name)
             .put(
                 "sets",
                 JSONArray().also { setsJson ->
@@ -75,6 +81,7 @@ object WorkoutBackupCodec {
         return JSONObject()
             .put("weightKg", weightKg)
             .put("reps", reps)
+            .put("durationSeconds", durationSeconds)
     }
 
     private fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> {

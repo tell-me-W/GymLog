@@ -26,6 +26,7 @@ class ExerciseRepository(
                     .filter { existing ->
                         existing.targetArea != defaultExercise.targetArea ||
                             existing.defaultRestSeconds != defaultExercise.defaultRestSeconds ||
+                            existing.inputType != defaultExercise.inputType ||
                             existing.isCustom
                     }
                     .forEach { existing ->
@@ -33,6 +34,7 @@ class ExerciseRepository(
                             existing.copy(
                                 targetArea = defaultExercise.targetArea,
                                 defaultRestSeconds = defaultExercise.defaultRestSeconds,
+                                inputType = defaultExercise.inputType,
                                 isCustom = false,
                             )
                         )

@@ -104,6 +104,7 @@ class WorkoutImportRepository(
                         sortOrder = setIndex,
                         weightKg = importedSet.weightKg.coerceAtLeast(0.0),
                         reps = importedSet.reps.coerceAtLeast(0),
+                        durationSeconds = importedSet.durationSeconds.coerceAtLeast(0),
                         isCompleted = true,
                     )
                 )
@@ -123,6 +124,7 @@ class WorkoutImportRepository(
                 targetArea = exercise.targetArea.ifBlank { SeedExercises.UNCATEGORIZED_TARGET_AREA },
                 isCustom = true,
                 defaultRestSeconds = exercise.defaultRestSeconds.coerceAtLeast(0),
+                inputType = exercise.inputType,
             )
         )
     }
@@ -137,8 +139,14 @@ private fun WorkoutSessionWithExercises.toImportedSession(): ImportedWorkoutSess
                 name = exercise.exercise.name,
                 targetArea = exercise.exercise.targetArea,
                 defaultRestSeconds = exercise.exercise.defaultRestSeconds,
+                inputType = exercise.exercise.inputType,
                 sets = exercise.sets.sortedBy { it.sortOrder }.map { set ->
-                    ImportedSet(weightKg = set.weightKg, reps = set.reps, isCompleted = true)
+                    ImportedSet(
+                        weightKg = set.weightKg,
+                        reps = set.reps,
+                        durationSeconds = set.durationSeconds,
+                        isCompleted = true,
+                    )
                 },
             )
         },
@@ -158,6 +166,8 @@ private fun ImportedWorkoutSession.signature(): String {
                 append(set.weightKg)
                 append('x')
                 append(set.reps)
+                append('x')
+                append(set.durationSeconds)
             }
         }
     }

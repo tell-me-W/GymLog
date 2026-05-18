@@ -10,6 +10,11 @@ enum class SessionStatus {
     COMPLETED,
 }
 
+enum class ExerciseInputType {
+    REPS,
+    DURATION,
+}
+
 @Entity(tableName = "exercises")
 data class ExerciseEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -17,6 +22,7 @@ data class ExerciseEntity(
     val targetArea: String,
     val isCustom: Boolean = false,
     val defaultRestSeconds: Int = 90,
+    val inputType: ExerciseInputType = ExerciseInputType.REPS,
 )
 
 @Entity(tableName = "workout_sessions")
@@ -70,6 +76,7 @@ data class WorkoutSetEntity(
     val sortOrder: Int,
     val weightKg: Double,
     val reps: Int,
+    val durationSeconds: Int = 0,
     val isCompleted: Boolean = false,
 )
 
@@ -80,4 +87,35 @@ data class UserProfileEntity(
     val weightKg: Double = 0.0,
     val gender: String = "",
     val age: Int = 0,
+)
+
+@Entity(tableName = "routines")
+data class RoutineEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+)
+
+@Entity(
+    tableName = "routine_exercises",
+    foreignKeys = [
+        ForeignKey(
+            entity = RoutineEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["routineId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = ExerciseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["exerciseId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("routineId"), Index("exerciseId")],
+)
+data class RoutineExerciseEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val routineId: Long,
+    val exerciseId: Long,
+    val sortOrder: Int,
 )

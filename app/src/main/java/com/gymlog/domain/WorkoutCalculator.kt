@@ -3,6 +3,7 @@ package com.gymlog.domain
 data class WorkoutSetInput(
     val weightKg: Double,
     val reps: Int,
+    val durationSeconds: Int = 0,
 )
 
 data class WorkoutSummary(
@@ -18,7 +19,7 @@ object WorkoutCalculator {
     }
 
     fun nextSetDefaults(previousSet: WorkoutSetInput?): WorkoutSetInput {
-        return previousSet ?: WorkoutSetInput(weightKg = 0.0, reps = 0)
+        return previousSet ?: WorkoutSetInput(weightKg = 0.0, reps = 0, durationSeconds = 0)
     }
 
     fun canRemoveLastSet(setCount: Int): Boolean {

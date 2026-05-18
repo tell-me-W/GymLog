@@ -11,4 +11,11 @@ class RestTimerNotificationPolicyTest {
         assertFalse(RestTimerNotificationPolicy.shouldNotify(RestTimerEvent.Tick))
         assertTrue(RestTimerNotificationPolicy.shouldNotify(RestTimerEvent.Finished))
     }
+
+    @Test
+    fun onlyFinishedNotificationOpensAppWhenTapped() {
+        assertFalse(RestTimerNotificationPolicy.shouldOpenAppWhenTapped(RestTimerEvent.Started))
+        assertFalse(RestTimerNotificationPolicy.shouldOpenAppWhenTapped(RestTimerEvent.Tick))
+        assertTrue(RestTimerNotificationPolicy.shouldOpenAppWhenTapped(RestTimerEvent.Finished))
+    }
 }
