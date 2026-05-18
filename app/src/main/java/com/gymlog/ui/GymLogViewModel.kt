@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.gymlog.data.local.ExerciseEntity
-import com.gymlog.data.local.RoutineWithExercises
+import com.gymlog.data.local.RoutineWithExerciseDetails
 import com.gymlog.data.local.UserProfileEntity
 import com.gymlog.data.local.WorkoutSessionEntity
 import com.gymlog.data.local.WorkoutSessionWithExercises
@@ -16,13 +16,9 @@ import com.gymlog.data.repository.SeedExercises
 import com.gymlog.data.repository.MonthlyWorkoutSummary
 import com.gymlog.data.repository.WorkoutImportRepository
 import com.gymlog.data.repository.WorkoutRepository
-import com.gymlog.domain.WorkoutCalculator
-import com.gymlog.domain.WorkoutSetInput
-import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,33 +27,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-sealed interface Screen {
-    data object Dashboard : Screen
-    data object Start : Screen
-    data object CopyFromDate : Screen
-    data object Settings : Screen
-    data object History : Screen
-    data class HistoryDetail(val sessionId: Long) : Screen
-    data class Logger(val sessionId: Long) : Screen
-    data class Summary(val summary: SummaryUiState) : Screen
-}
-
-fun Screen.backDestination(): Screen {
-    return when (this) {
-        Screen.Dashboard -> Screen.Dashboard
-        is Screen.HistoryDetail -> Screen.History
-        else -> Screen.Dashboard
-    }
-}
-
-data class SummaryUiState(
-    val totalVolumeKg: Double,
-    val durationSeconds: Long,
-    val exerciseCount: Int,
-    val setCount: Int,
-    val completedAtMillis: Long = System.currentTimeMillis(),
-)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GymLogViewModel(
@@ -104,7 +73,7 @@ class GymLogViewModel(
         .observeProfile()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val routines: StateFlow<List<RoutineWithExercises>> = routineRepository
+    val routines: StateFlow<List<RoutineWithExerciseDetails>> = routineRepository
         .observeRoutines()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -190,7 +159,7 @@ class GymLogViewModel(
         viewModelScope.launch {
             runCatching { workoutImportRepository.exportCompletedJson() }
                 .onSuccess(onReady)
-                .onFailure { _settingsMessage.value = it.message ?: "백업 생성에 실패했습니다." }
+                .onFailure { _settingsMessage.value = SettingsMessages.backupExportFailure(it) }
         }
     }
 
@@ -200,9 +169,9 @@ class GymLogViewModel(
                 .onSuccess {
                     refreshCalendar()
                     refreshRecentExerciseRecords()
-                    _settingsMessage.value = "불러오기 완료: ${it.inserted}개 추가, ${it.skipped}개 건너뜀"
+                    _settingsMessage.value = SettingsMessages.backupImportSuccess(it)
                 }
-                .onFailure { _settingsMessage.value = it.message ?: "불러오기에 실패했습니다." }
+                .onFailure { _settingsMessage.value = SettingsMessages.backupImportFailure(it) }
         }
     }
 
@@ -215,9 +184,9 @@ class GymLogViewModel(
                 .onSuccess {
                     refreshCalendar()
                     refreshRecentExerciseRecords()
-                    _settingsMessage.value = "텍스트 추가 완료: ${it.inserted}개 추가, ${it.skipped}개 건너뜀"
+                    _settingsMessage.value = SettingsMessages.textImportSuccess(it)
                 }
-                .onFailure { _settingsMessage.value = it.message ?: "텍스트 추가에 실패했습니다." }
+                .onFailure { _settingsMessage.value = SettingsMessages.textImportFailure(it) }
         }
     }
 
@@ -255,10 +224,10 @@ class GymLogViewModel(
         }
     }
 
-    fun addRoutine(sessionId: Long, routine: RoutineWithExercises) {
+    fun addRoutine(sessionId: Long, routine: RoutineWithExerciseDetails) {
         addExercises(
             sessionId = sessionId,
-            exerciseIds = routine.exercises.sortedBy { it.sortOrder }.map { it.exerciseId },
+            exerciseIds = routine.exercises.sortedBy { it.routineExercise.sortOrder }.map { it.routineExercise.exerciseId },
         )
     }
 
@@ -342,7 +311,7 @@ class GymLogViewModel(
             val completed = workoutRepository.sessionSnapshot(sessionId) ?: return@launch
             refreshCalendar()
             refreshDraft()
-            _screen.value = Screen.Summary(completed.toSummary())
+            _screen.value = Screen.Summary(completed.toSummaryUiState())
         }
     }
 
@@ -356,22 +325,6 @@ class GymLogViewModel(
         _draftSessionId.value = workoutRepository.latestDraftSession()?.id
     }
 
-    private fun WorkoutSessionWithExercises.toSummary(): SummaryUiState {
-        val sets = exercises.flatMap { it.sets }
-        val summary = WorkoutCalculator.summarizeSession(
-            sets = sets.map { WorkoutSetInput(weightKg = it.weightKg, reps = it.reps) },
-            exerciseCount = exercises.size,
-            startedAtMillis = session.startedAtMillis,
-            endedAtMillis = session.endedAtMillis ?: System.currentTimeMillis(),
-        )
-        return SummaryUiState(
-            totalVolumeKg = summary.totalVolumeKg,
-            durationSeconds = summary.durationSeconds,
-            exerciseCount = summary.exerciseCount,
-            setCount = summary.setCount,
-            completedAtMillis = session.endedAtMillis ?: session.startedAtMillis,
-        )
-    }
 }
 
 class GymLogViewModelFactory(
@@ -391,19 +344,4 @@ class GymLogViewModelFactory(
             routineRepository,
         ) as T
     }
-}
-
-fun formatDuration(totalSeconds: Long): String {
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%02d:%02d".format(minutes, seconds)
-}
-
-fun formatKoreanDate(millis: Long): String {
-    val formatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일")
-    return Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().format(formatter)
-}
-
-fun formatKoreanYearMonth(month: YearMonth): String {
-    return "${month.year}년 ${month.monthValue}월"
 }

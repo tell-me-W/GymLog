@@ -3,13 +3,13 @@ package com.gymlog.data.repository
 import com.gymlog.data.local.RoutineDao
 import com.gymlog.data.local.RoutineEntity
 import com.gymlog.data.local.RoutineExerciseEntity
-import com.gymlog.data.local.RoutineWithExercises
+import com.gymlog.data.local.RoutineWithExerciseDetails
 import kotlinx.coroutines.flow.Flow
 
 class RoutineRepository(
     private val routineDao: RoutineDao,
 ) {
-    fun observeRoutines(): Flow<List<RoutineWithExercises>> {
+    fun observeRoutines(): Flow<List<RoutineWithExerciseDetails>> {
         return routineDao.observeRoutines()
     }
 
