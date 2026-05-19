@@ -23,6 +23,7 @@ data class ExerciseEntity(
     val isCustom: Boolean = false,
     val defaultRestSeconds: Int = 90,
     val inputType: ExerciseInputType = ExerciseInputType.REPS,
+    val isArchived: Boolean = false,
 )
 
 @Entity(tableName = "workout_sessions")

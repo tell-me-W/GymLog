@@ -213,6 +213,9 @@ internal fun LoggerScreen(viewModel: GymLogViewModel, sessionId: Long) {
                 viewModel.addCustomExerciseAndAttach(sessionId, name, target, restSeconds)
                 showAddExercise = false
             },
+            onArchiveCustomExercise = { exercise ->
+                viewModel.archiveCustomExercise(exercise.id)
+            },
             onRoutineSelected = { routine ->
                 viewModel.addRoutine(sessionId, routine)
                 showAddExercise = false

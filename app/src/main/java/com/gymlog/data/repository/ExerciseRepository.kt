@@ -36,6 +36,7 @@ class ExerciseRepository(
                                 defaultRestSeconds = defaultExercise.defaultRestSeconds,
                                 inputType = defaultExercise.inputType,
                                 isCustom = false,
+                                isArchived = false,
                             )
                         )
                     }
@@ -56,5 +57,11 @@ class ExerciseRepository(
                 defaultRestSeconds = defaultRestSeconds.coerceAtLeast(0),
             )
         )
+    }
+
+    suspend fun archiveCustomExercise(exerciseId: Long) {
+        val exercise = exerciseDao.getById(exerciseId) ?: return
+        if (!exercise.isCustom) return
+        exerciseDao.updateExercise(exercise.copy(isArchived = true))
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.gymlog.data.local.ExerciseEntity
 import com.gymlog.data.local.RoutineWithExerciseDetails
 import com.gymlog.data.repository.SeedExercises
+import com.gymlog.ui.ExerciseArchivePolicy
 import com.gymlog.ui.ExercisePickerSorter
 import com.gymlog.ui.RecentExerciseRecord
 import com.gymlog.ui.RoutineCreationPolicy
@@ -61,6 +63,7 @@ internal fun AddExerciseDialog(
     onDismiss: () -> Unit,
     onExercisesSelected: (List<ExerciseEntity>) -> Unit,
     onCustomExercise: (String, String, Int) -> Unit,
+    onArchiveCustomExercise: (ExerciseEntity) -> Unit,
     onRoutineSelected: (RoutineWithExerciseDetails) -> Unit,
     onCreateRoutine: (String, List<Long>) -> Unit,
     onDeleteRoutine: (Long) -> Unit,
@@ -78,6 +81,7 @@ internal fun AddExerciseDialog(
     }
     var selectedExercises by remember { mutableStateOf<Map<Long, ExerciseEntity>>(emptyMap()) }
     var searchQuery by remember { mutableStateOf("") }
+    var archiveTarget by remember { mutableStateOf<ExerciseEntity?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -291,6 +295,11 @@ internal fun AddExerciseDialog(
                         if (isSelected) {
                             Text("✓", color = Color.Blue, fontWeight = FontWeight.Bold)
                         }
+                        if (ExerciseArchivePolicy.canArchive(exercise)) {
+                            TextButton(onClick = { archiveTarget = exercise }) {
+                                Text("삭제")
+                            }
+                        }
                     }
                 }
             }
@@ -337,6 +346,30 @@ internal fun AddExerciseDialog(
             }
             }
         }
+    }
+
+    archiveTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { archiveTarget = null },
+            title = { Text("커스텀 종목 삭제") },
+            text = { Text("이 커스텀 종목을 목록에서 숨길까요? 기존 운동 기록은 유지됩니다.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedExercises = selectedExercises - target.id
+                        onArchiveCustomExercise(target)
+                        archiveTarget = null
+                    },
+                ) {
+                    Text("삭제")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { archiveTarget = null }) {
+                    Text("취소")
+                }
+            },
+        )
     }
 }
 

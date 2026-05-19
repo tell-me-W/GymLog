@@ -22,6 +22,8 @@ import java.time.ZoneId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -68,6 +70,9 @@ class GymLogViewModel(
 
     private val _settingsMessage = MutableStateFlow<String?>(null)
     val settingsMessage: StateFlow<String?> = _settingsMessage
+
+    private val _toastMessages = MutableSharedFlow<String>()
+    val toastMessages: SharedFlow<String> = _toastMessages
 
     val profile: StateFlow<UserProfileEntity?> = profileRepository
         .observeProfile()
@@ -205,6 +210,7 @@ class GymLogViewModel(
         viewModelScope.launch {
             val sessionId = workoutRepository.copyCompletedSessionToDraft(sourceSessionId)
             _screen.value = Screen.Logger(sessionId)
+            _toastMessages.emit(WorkoutToastMessages.copyWorkoutStarted)
         }
     }
 
@@ -261,6 +267,12 @@ class GymLogViewModel(
         }
     }
 
+    fun archiveCustomExercise(exerciseId: Long) {
+        viewModelScope.launch {
+            exerciseRepository.archiveCustomExercise(exerciseId)
+        }
+    }
+
     fun addSet(
         sessionExerciseId: Long,
         weightKg: Double = 0.0,
@@ -306,6 +318,7 @@ class GymLogViewModel(
                 refreshCalendar()
                 refreshDraft()
                 _screen.value = Screen.Dashboard
+                _toastMessages.emit(WorkoutToastMessages.emptyWorkoutNotSaved)
                 return@launch
             }
             val completed = workoutRepository.sessionSnapshot(sessionId) ?: return@launch
