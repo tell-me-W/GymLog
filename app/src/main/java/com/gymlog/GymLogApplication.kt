@@ -19,7 +19,11 @@ class GymLogApplication : Application() {
             applicationContext,
             GymLogDatabase::class.java,
             "gymlog.db",
-        ).addMigrations(GymLogDatabase.MIGRATION_1_2, GymLogDatabase.MIGRATION_2_3).build()
+        ).addMigrations(
+            GymLogDatabase.MIGRATION_1_2,
+            GymLogDatabase.MIGRATION_2_3,
+            GymLogDatabase.MIGRATION_3_4,
+        ).build()
         container = AppContainer(
             exerciseRepository = ExerciseRepository(database.exerciseDao()),
             workoutRepository = WorkoutRepository(database.workoutDao()),

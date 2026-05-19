@@ -4,6 +4,7 @@ import com.gymlog.data.local.ExerciseDao
 import com.gymlog.data.local.ExerciseEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -43,6 +44,51 @@ class ExerciseRepositoryTest {
 
         assertTrue(dao.exercises.any { it.name == "어시스트 풀업 머신" && it.targetArea == "등" })
     }
+
+    @Test
+    fun archiveCustomExerciseHidesItFromExerciseLists() = runTest {
+        val dao = FakeExerciseDao(
+            ExerciseEntity(id = 1L, name = "내 커스텀 운동", targetArea = "기타", isCustom = true),
+            ExerciseEntity(id = 2L, name = "벤치 프레스", targetArea = "가슴", isCustom = false),
+        )
+        val repository = ExerciseRepository(dao)
+
+        repository.archiveCustomExercise(1L)
+
+        assertEquals(listOf("벤치 프레스"), repository.observeExercises().first().map { it.name })
+        assertEquals(emptyList<String>(), repository.observeExercises("기타").first().map { it.name })
+        assertTrue(dao.getById(1L)!!.isArchived)
+    }
+
+    @Test
+    fun archiveCustomExerciseDoesNotArchiveDefaultExercises() = runTest {
+        val dao = FakeExerciseDao(
+            ExerciseEntity(id = 1L, name = "벤치 프레스", targetArea = "가슴", isCustom = false)
+        )
+        val repository = ExerciseRepository(dao)
+
+        repository.archiveCustomExercise(1L)
+
+        assertFalse(dao.getById(1L)!!.isArchived)
+    }
+
+    @Test
+    fun seedDefaultsRestoresArchivedDefaultExercises() = runTest {
+        val dao = FakeExerciseDao(
+            ExerciseEntity(
+                id = 1L,
+                name = "벤치 프레스",
+                targetArea = "가슴",
+                isCustom = false,
+                isArchived = true,
+            )
+        )
+        val repository = ExerciseRepository(dao)
+
+        repository.seedDefaultsIfEmpty()
+
+        assertFalse(dao.getById(1L)!!.isArchived)
+    }
 }
 
 private class FakeExerciseDao(
@@ -51,10 +97,12 @@ private class FakeExerciseDao(
     val exercises = initialExercises.toMutableList()
     private var nextId = (exercises.maxOfOrNull { it.id } ?: 0L) + 1L
 
-    override fun observeExercises(): Flow<List<ExerciseEntity>> = flowOf(exercises)
+    override fun observeExercises(): Flow<List<ExerciseEntity>> {
+        return flowOf(exercises.filterNot { it.isArchived })
+    }
 
     override fun observeExercises(targetArea: String): Flow<List<ExerciseEntity>> {
-        return flowOf(exercises.filter { it.targetArea == targetArea })
+        return flowOf(exercises.filter { it.targetArea == targetArea && !it.isArchived })
     }
 
     override suspend fun count(): Int = exercises.size
@@ -63,6 +111,10 @@ private class FakeExerciseDao(
 
     override suspend fun getByName(name: String): ExerciseEntity? {
         return exercises.sortedBy { it.isCustom }.firstOrNull { it.name == name }
+    }
+
+    override suspend fun getById(id: Long): ExerciseEntity? {
+        return exercises.firstOrNull { it.id == id }
     }
 
     override suspend fun insertExercise(exercise: ExerciseEntity): Long {

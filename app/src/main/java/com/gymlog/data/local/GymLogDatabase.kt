@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RoutineEntity::class,
         RoutineExerciseEntity::class,
     ],
-    version = 3,
+    version = 4,
 )
 @TypeConverters(Converters::class)
 abstract class GymLogDatabase : RoomDatabase() {
@@ -69,6 +69,12 @@ abstract class GymLogDatabase : RoomDatabase() {
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_routine_exercises_routineId ON routine_exercises(routineId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_routine_exercises_exerciseId ON routine_exercises(exerciseId)")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE exercises ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

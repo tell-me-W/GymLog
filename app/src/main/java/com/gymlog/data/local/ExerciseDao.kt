@@ -9,10 +9,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ExerciseDao {
-    @Query("SELECT * FROM exercises ORDER BY targetArea, name")
+    @Query("SELECT * FROM exercises WHERE isArchived = 0 ORDER BY targetArea, name")
     fun observeExercises(): Flow<List<ExerciseEntity>>
 
-    @Query("SELECT * FROM exercises WHERE targetArea = :targetArea ORDER BY name")
+    @Query("SELECT * FROM exercises WHERE targetArea = :targetArea AND isArchived = 0 ORDER BY name")
     fun observeExercises(targetArea: String): Flow<List<ExerciseEntity>>
 
     @Query("SELECT COUNT(*) FROM exercises")
@@ -23,6 +23,9 @@ interface ExerciseDao {
 
     @Query("SELECT * FROM exercises WHERE name = :name ORDER BY isCustom ASC LIMIT 1")
     suspend fun getByName(name: String): ExerciseEntity?
+
+    @Query("SELECT * FROM exercises WHERE id = :id")
+    suspend fun getById(id: Long): ExerciseEntity?
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertExercise(exercise: ExerciseEntity): Long
